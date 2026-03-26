@@ -1,0 +1,14 @@
+{
+  "name": "instagram-bot",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && python -m uvicorn app.main:app --reload --port 8000",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "test": "cd backend && python -m pytest tests/ -v"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
