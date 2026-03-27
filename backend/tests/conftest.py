@@ -14,6 +14,9 @@ class MockAIProvider(AIProvider):
     async def translate_and_improve(self, text):
         return {"original": text, "improved": f"Improved: {text}", "language": "en"}
 
+    async def translate_message(self, text):
+        return {"original": text, "translated": f"Translated: {text}", "source_lang": "en"}
+
     def reload_knowledge(self, extra_qa=None):
         pass
 

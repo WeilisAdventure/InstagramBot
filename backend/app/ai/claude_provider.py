@@ -50,6 +50,33 @@ class ClaudeProvider(AIProvider):
         except anthropic.APIError as e:
             return f"Sorry, I'm having trouble right now. Please try again shortly. (Error: {e})"
 
+    async def translate_message(self, text: str) -> dict:
+        import re
+        # Simple heuristic: if text contains CJK characters, treat as Chinese
+        has_cjk = bool(re.search(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
+        source_lang = "zh" if has_cjk else "en"
+
+        if source_lang == "en":
+            direction = "Translate the following English text to Chinese."
+        else:
+            direction = "Translate the following Chinese text to English."
+
+        prompt = (
+            f"{direction}\n\n"
+            "Respond with ONLY the translated text, no explanations.\n\n"
+            f"Text: {text}"
+        )
+        try:
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            translated = response.content[0].text.strip()
+            return {"original": text, "translated": translated, "source_lang": source_lang}
+        except Exception:
+            return {"original": text, "translated": text, "source_lang": source_lang}
+
     async def translate_and_improve(self, text: str) -> dict:
         prompt = (
             "Analyze the following text. If it's in Chinese, translate it to natural English "

@@ -42,6 +42,10 @@ export const sendMessage = (id: number, text: string) =>
   request<import('../types').Message>(`/conversations/${id}/send`, { method: 'POST', body: JSON.stringify({ text }) });
 export const assistInput = (id: number, text: string) =>
   request<import('../types').AssistResult>(`/conversations/${id}/assist`, { method: 'POST', body: JSON.stringify({ text }) });
+export const translateMessage = (convId: number, text: string) =>
+  request<{ original: string; translated: string; source_lang: string }>(`/conversations/${convId}/translate`, { method: 'POST', body: JSON.stringify({ text }) });
+export const generateAIReply = (convId: number) =>
+  request<{ reply: string }>(`/conversations/${convId}/generate-reply`, { method: 'POST' });
 
 // Simulate
 export const simulateComment = (comment_text: string, username?: string) =>

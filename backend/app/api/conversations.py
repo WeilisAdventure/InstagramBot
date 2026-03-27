@@ -97,3 +97,45 @@ async def assist_input(conv_id: int, data: AssistRequest, request: Request):
     translator = request.app.state.translator
     result = await translator.assist_input(data.text)
     return AssistResponse(**result)
+
+
+@router.post("/{conv_id}/translate")
+async def translate_message(conv_id: int, data: dict, request: Request):
+    """Translate a message text."""
+    translator = request.app.state.translator
+    result = await translator.translate_message(data.get("text", ""))
+    return result
+
+
+@router.post("/{conv_id}/generate-reply")
+async def generate_reply(conv_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Generate an AI reply preview without sending it."""
+    conv = await db.get(Conversation, conv_id)
+    if not conv:
+        raise HTTPException(404, "Conversation not found")
+
+    # Load messages
+    msg_result = await db.execute(
+        select(Message).where(Message.conversation_id == conv_id).order_by(Message.created_at)
+    )
+    messages = msg_result.scalars().all()
+    history = [{"role": m.role, "content": m.content} for m in messages]
+
+    # Load knowledge
+    from app.models.knowledge import KnowledgeEntry
+    k_result = await db.execute(select(KnowledgeEntry).where(KnowledgeEntry.is_active == True))
+    entries = k_result.scalars().all()
+    knowledge = [{"question": e.question, "answer": e.answer} for e in entries]
+
+    ai = request.app.state.ai_provider
+    ai.reload_knowledge(knowledge)
+
+    # Get last user message
+    last_user_msg = ""
+    for m in reversed(messages):
+        if m.role == "user":
+            last_user_msg = m.content
+            break
+
+    reply = await ai.generate_reply(last_user_msg, history)
+    return {"reply": reply}

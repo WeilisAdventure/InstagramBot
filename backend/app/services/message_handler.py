@@ -77,10 +77,23 @@ class MessageHandler:
             logger.info("Auto reply disabled, skipping DM")
             return
 
+        # If username is empty (webhook mode), try to fetch it via Graph API
+        username = msg.sender_username
+        if not username and hasattr(self.ig, 'get_user_profile'):
+            try:
+                profile = await self.ig.get_user_profile(msg.sender_id)
+                if profile:
+                    username = profile.get("username", "") or profile.get("name", "")
+            except Exception as e:
+                logger.warning(f"Could not fetch username for {msg.sender_id}: {e}")
+
         async with async_session() as db:
             conv = await self._get_or_create_conversation(
-                db, msg.sender_id, msg.sender_username
+                db, msg.sender_id, username
             )
+            # Update username if conversation had empty username
+            if username and not conv.ig_username:
+                conv.ig_username = username
             # Save user message
             user_msg = Message(
                 conversation_id=conv.id,

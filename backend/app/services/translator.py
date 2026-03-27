@@ -10,3 +10,9 @@ class TranslatorService:
         Returns {"original": str, "improved": str, "language": "zh"|"en"}
         """
         return await self.ai.translate_and_improve(text)
+
+    async def translate_message(self, text: str) -> dict:
+        """Translate a message. English->Chinese or Chinese->English.
+        Returns {"original": str, "translated": str, "source_lang": "en"|"zh"}
+        """
+        return await self.ai.translate_message(text)

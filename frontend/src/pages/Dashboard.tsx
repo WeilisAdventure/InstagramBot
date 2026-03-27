@@ -7,50 +7,85 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    getDashboardStats().then(setStats).catch(() => {});
-  }, []);
-
-  const cards = [
-    { label: 'Weekly Conversations', value: stats?.weekly_conversations ?? '-', link: '/conversations', color: 'bg-blue-500' },
-    { label: 'AI Resolution Rate', value: stats ? `${stats.ai_resolution_rate}%` : '-', link: '/conversations', color: 'bg-green-500' },
-    { label: 'Comment Triggers', value: stats?.comment_triggers ?? '-', link: '/rules', color: 'bg-purple-500' },
-    { label: 'Avg Response Time', value: stats ? `${stats.avg_response_time_seconds.toFixed(1)}s` : '-', link: '/settings', color: 'bg-orange-500' },
-  ];
+  useEffect(() => { getDashboardStats().then(setStats).catch(() => {}); }, []);
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map((card) => (
-          <button
-            key={card.label}
-            onClick={() => navigate(card.link)}
-            className="bg-white rounded-xl shadow p-6 text-left hover:shadow-lg transition-shadow"
-          >
-            <div className={`w-10 h-10 ${card.color} rounded-lg mb-3`} />
-            <p className="text-sm text-gray-500">{card.label}</p>
-            <p className="text-3xl font-bold mt-1">{card.value}</p>
-          </button>
-        ))}
+    <div className="scroll-y">
+      {/* Panel Header */}
+      <div className="mb-12" style={{ borderBottom: '0.5px solid var(--border-soft)', paddingBottom: 10 }}>
+        <div className="panel-title">总览仪表盘</div>
+        <div className="panel-sub">Instagram 自动化客服概览</div>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: 'Manage Rules', desc: 'Create and edit comment trigger rules', link: '/rules' },
-          { label: 'Test Rules', desc: 'Simulate comments to test triggers', link: '/simulate' },
-          { label: 'Knowledge Base', desc: 'Manage Q&A for AI replies', link: '/knowledge' },
-        ].map((item) => (
-          <button
-            key={item.label}
-            onClick={() => navigate(item.link)}
-            className="bg-white rounded-xl shadow p-5 text-left hover:shadow-lg transition-shadow"
+      {/* Hero Card */}
+      <div className="card-surface mb-12">
+        <div className="flex items-center gap-8 mb-8">
+          <div
+            style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: 'linear-gradient(135deg, #833AB4, #FD1D1D, #F77737)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}
           >
-            <h3 className="font-semibold">{item.label}</h3>
-            <p className="text-sm text-gray-500 mt-1">{item.desc}</p>
-          </button>
-        ))}
+            <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, fill: '#fff' }}>
+              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+            </svg>
+          </div>
+          <div>
+            <div className="panel-title">InstaBot — Instagram AI 客服助手</div>
+            <div className="text-sm">自动处理评论触发、私信对话、翻译与 AI 回复</div>
+          </div>
+        </div>
+        {/* Flow Chips */}
+        <div className="flow-row">
+          <span className="fb fb-gray">用户评论</span><span className="flow-arrow">&rarr;</span>
+          <span className="fb fb-purple">关键词检测</span><span className="flow-arrow">&rarr;</span>
+          <span className="fb fb-blue">自动私信</span><span className="flow-arrow">&rarr;</span>
+          <span className="fb fb-green">AI 持续跟进</span>
+          <span className="flow-arrow">+</span>
+          <span className="fb fb-amber">人工介入</span>
+        </div>
       </div>
+
+      {/* Stats Grid */}
+      <div className="stats-grid mb-12">
+        <StatCard value={stats?.weekly_conversations ?? '-'} label="本周对话数" change="+12%" />
+        <StatCard value={stats ? `${stats.ai_resolution_rate}%` : '-'} label="AI 解决率" change="+3%" />
+        <StatCard value={stats?.comment_triggers ?? '-'} label="评论触发次数" change="+8%" />
+        <StatCard value={stats ? `${stats.avg_response_time_seconds.toFixed(1)}s` : '-'} label="平均响应" change="-0.5s" />
+      </div>
+
+      {/* Feature Cards 2x2 */}
+      <div className="grid-2">
+        <FeatureCard icon="💬" name="评论触发规则" desc="用户评论含关键词 → 自动发送私信 + 可选公开回复评论" onClick={() => navigate('/rules')} />
+        <FeatureCard icon="🧪" name="模拟测试" desc="输入评论内容，实时预览触发结果，验证规则是否正确" onClick={() => navigate('/simulate')} />
+        <FeatureCard icon="✉️" name="私信对话管理" desc="AI 回复 / 人工回复随时切换，英中翻译，AI 优化输入" onClick={() => navigate('/conversations')} />
+        <FeatureCard icon="📚" name="服务知识库" desc="配置常见问答，AI 回复时自动引用，保持品牌一致性" onClick={() => navigate('/knowledge')} />
+      </div>
+    </div>
+  );
+}
+
+/* ---- Sub-components ---- */
+
+function StatCard({ value, label, change }: { value: string | number; label: string; change: string }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-number">{value}</div>
+      <div className="stat-label">{label}</div>
+      <div className="stat-change">{change}</div>
+    </div>
+  );
+}
+
+function FeatureCard({ icon, name, desc, onClick }: { icon: string; name: string; desc: string; onClick: () => void }) {
+  return (
+    <div className="card" onClick={onClick} style={{ cursor: 'pointer' }}>
+      <div className="avatar-sm mb-8" style={{ borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 16, width: 32, height: 32 }}>
+        {icon}
+      </div>
+      <div className="font-medium text-sm mb-2" style={{ color: 'var(--text-primary)' }}>{name}</div>
+      <div className="text-xs" style={{ lineHeight: 1.6 }}>{desc}</div>
     </div>
   );
 }

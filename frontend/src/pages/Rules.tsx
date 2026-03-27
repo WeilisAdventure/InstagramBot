@@ -3,13 +3,8 @@ import { getRules, createRule, updateRule, deleteRule } from '../api/client';
 import type { Rule, RuleCreate } from '../types';
 
 const emptyRule: RuleCreate = {
-  name: '',
-  keywords: [],
-  match_mode: 'contains',
-  public_reply_template: '',
-  dm_template: '',
-  follow_up_mode: 'ai',
-  is_active: true,
+  name: '', keywords: [], match_mode: 'contains',
+  public_reply_template: '', dm_template: '', follow_up_mode: 'ai', is_active: true,
 };
 
 export default function Rules() {
@@ -22,19 +17,14 @@ export default function Rules() {
 
   const save = async () => {
     if (!editing) return;
-    if (editing.id) {
-      await updateRule(editing.id, editing);
-    } else {
-      await createRule(editing);
-    }
-    setEditing(null);
-    load();
+    if (editing.id) await updateRule(editing.id, editing);
+    else await createRule(editing);
+    setEditing(null); load();
   };
 
   const remove = async (id: number) => {
-    if (!confirm('Delete this rule?')) return;
-    await deleteRule(id);
-    load();
+    if (!confirm('确定删除？')) return;
+    await deleteRule(id); load();
   };
 
   const addKeyword = () => {
@@ -43,145 +33,196 @@ export default function Rules() {
     setKeywordInput('');
   };
 
-  const removeKeyword = (idx: number) => {
-    if (!editing) return;
-    setEditing({ ...editing, keywords: editing.keywords.filter((_, i) => i !== idx) });
-  };
-
+  /* ---- Edit Form ---- */
   if (editing) {
     return (
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">{editing.id ? 'Edit Rule' : 'New Rule'}</h1>
-          <button onClick={() => setEditing(null)} className="text-gray-500 hover:text-gray-700">Cancel</button>
-        </div>
-        <div className="bg-white rounded-xl shadow p-6 space-y-4 max-w-2xl">
+      <div className="flex-col" style={{ height: '100%' }}>
+        {/* Page Header */}
+        <div className="panel-header">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Rule Name</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={editing.name}
-              onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-              placeholder="e.g. Price Inquiry"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Keywords</label>
-            <div className="flex gap-2 flex-wrap mb-2">
-              {editing.keywords.map((kw, i) => (
-                <span key={i} className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm flex items-center gap-1">
-                  {kw}
-                  <button onClick={() => removeKeyword(i)} className="text-blue-500 hover:text-blue-700">&times;</button>
-                </span>
-              ))}
+            <div className="panel-title">
+              {editing.id ? '编辑规则' : '新建规则'}
             </div>
-            <div className="flex gap-2">
+            <div className="panel-sub">配置自动回复触发条件</div>
+          </div>
+          <button onClick={() => setEditing(null)}>取消</button>
+        </div>
+
+        {/* Scrollable Form */}
+        <div className="scroll-y">
+          <div className="card" style={{ maxWidth: 520, padding: 16 }}>
+            {/* 规则名称 */}
+            <div className="field">
+              <label className="field-label">规则名称</label>
               <input
-                className="flex-1 border rounded-lg px-3 py-2"
+                type="text"
+                value={editing.name}
+                onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                placeholder="例：价格咨询"
+              />
+            </div>
+
+            {/* 关键词 */}
+            <div className="field">
+              <label className="field-label">关键词</label>
+              <div className="flex gap-6" style={{ flexWrap: 'wrap', marginBottom: 8 }}>
+                {editing.keywords.map((kw, i) => (
+                  <span key={i} className="keyword-tag">
+                    {kw}
+                    <button
+                      onClick={() => setEditing({ ...editing, keywords: editing.keywords.filter((_, j) => j !== i) })}
+                    >&times;</button>
+                  </span>
+                ))}
+              </div>
+              <input
+                type="text"
                 value={keywordInput}
                 onChange={(e) => setKeywordInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                placeholder="Add keyword and press Enter"
+                placeholder="输入关键词按回车添加"
               />
-              <button onClick={addKeyword} className="bg-blue-500 text-white px-4 py-2 rounded-lg">Add</button>
             </div>
+
+            {/* Match mode + Follow-up mode */}
+            <div className="grid-2 mb-12">
+              <div className="field">
+                <label className="field-label">匹配方式</label>
+                <select
+                  value={editing.match_mode}
+                  onChange={(e) => setEditing({ ...editing, match_mode: e.target.value })}
+                >
+                  <option value="contains">包含</option>
+                  <option value="exact">精确匹配</option>
+                  <option value="regex">正则</option>
+                </select>
+              </div>
+              <div className="field">
+                <label className="field-label">后续模式</label>
+                <select
+                  value={editing.follow_up_mode}
+                  onChange={(e) => setEditing({ ...editing, follow_up_mode: e.target.value })}
+                >
+                  <option value="ai">AI 自动回复</option>
+                  <option value="human">转接人工</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Public reply template */}
+            <div className="field">
+              <label className="field-label">公开回复模板</label>
+              <textarea
+                rows={2}
+                value={editing.public_reply_template}
+                onChange={(e) => setEditing({ ...editing, public_reply_template: e.target.value })}
+                placeholder="评论下方的公开回复，用 {name} 代替用户名"
+              />
+            </div>
+
+            {/* DM template */}
+            <div className="field">
+              <label className="field-label">私信模板</label>
+              <textarea
+                rows={2}
+                value={editing.dm_template}
+                onChange={(e) => setEditing({ ...editing, dm_template: e.target.value })}
+                placeholder="发送给评论者的私信，用 {name} 代替用户名"
+              />
+            </div>
+
+            {/* Save button */}
+            <button className="btn-primary" onClick={save}>保存规则</button>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Match Mode</label>
-            <select
-              className="w-full border rounded-lg px-3 py-2"
-              value={editing.match_mode}
-              onChange={(e) => setEditing({ ...editing, match_mode: e.target.value })}
-            >
-              <option value="contains">Contains</option>
-              <option value="exact">Exact Match</option>
-              <option value="regex">Regex</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Public Reply Template</label>
-            <textarea
-              className="w-full border rounded-lg px-3 py-2"
-              rows={2}
-              value={editing.public_reply_template}
-              onChange={(e) => setEditing({ ...editing, public_reply_template: e.target.value })}
-              placeholder="Reply shown publicly under the comment. Use {name} for username."
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">DM Template</label>
-            <textarea
-              className="w-full border rounded-lg px-3 py-2"
-              rows={2}
-              value={editing.dm_template}
-              onChange={(e) => setEditing({ ...editing, dm_template: e.target.value })}
-              placeholder="DM sent to the commenter. Use {name} for username."
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Follow-up Mode</label>
-            <select
-              className="w-full border rounded-lg px-3 py-2"
-              value={editing.follow_up_mode}
-              onChange={(e) => setEditing({ ...editing, follow_up_mode: e.target.value })}
-            >
-              <option value="ai">AI Auto-Reply</option>
-              <option value="human">Human Agent</option>
-            </select>
-          </div>
-          <button onClick={save} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
-            Save Rule
-          </button>
         </div>
       </div>
     );
   }
 
+  /* ---- Rule List ---- */
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Comment Trigger Rules</h1>
-        <button
-          onClick={() => setEditing({ ...emptyRule })}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          + New Rule
+    <div className="flex-col" style={{ height: '100%' }}>
+      {/* Page Header */}
+      <div className="panel-header">
+        <div>
+          <div className="panel-title">评论触发规则</div>
+          <div className="panel-sub">管理自动化回复流程</div>
+        </div>
+        <button className="btn-primary" onClick={() => setEditing({ ...emptyRule })}>
+          + 新建规则
         </button>
       </div>
-      <div className="space-y-3">
-        {rules.length === 0 && <p className="text-gray-500">No rules yet. Create one to get started.</p>}
-        {rules.map((rule) => (
-          <div key={rule.id} className="bg-white rounded-xl shadow p-4 flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold">{rule.name}</h3>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${rule.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {rule.is_active ? 'Active' : 'Inactive'}
-                </span>
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                  {rule.follow_up_mode === 'ai' ? 'AI' : 'Human'}
-                </span>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">
-                Keywords: {rule.keywords.join(', ')} ({rule.match_mode})
-              </p>
+
+      {/* Scrollable Content */}
+      <div className="scroll-y">
+        <div className="flex-col gap-8">
+          {rules.length === 0 && (
+            <div className="text-muted" style={{ textAlign: 'center', padding: '48px 0', fontSize: 12 }}>
+              暂无规则，点击右上角创建
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setEditing({ ...rule })}
-                className="text-blue-600 hover:text-blue-800 text-sm"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => remove(rule.id)}
-                className="text-red-500 hover:text-red-700 text-sm"
-              >
-                Delete
-              </button>
-            </div>
+          )}
+          {rules.map((rule) => (
+            <RuleCard
+              key={rule.id}
+              rule={rule}
+              onEdit={() => setEditing({ ...rule })}
+              onDelete={() => remove(rule.id)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---- Rule Card ---- */
+
+function RuleCard({ rule, onEdit, onDelete }: { rule: Rule; onEdit: () => void; onDelete: () => void }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      className="rule-card"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Top row: name + badge + actions */}
+      <div className="rule-top">
+        <div className="flex items-center gap-8 flex-1 min-w-0">
+          <span className="nav-dot" style={{ background: rule.is_active ? '#22c55e' : 'rgba(0,0,0,0.25)' }} />
+          <span className="rule-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {rule.name}
+          </span>
+        </div>
+        <div className="flex items-center gap-8">
+          <span className={`badge ${rule.is_active ? 'badge-on' : 'badge-off'}`}>
+            {rule.is_active ? '运行中' : '已暂停'}
+          </span>
+          <div className="flex gap-8" style={{ opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
+            <button className="icon-btn" onClick={onEdit} style={{ fontSize: 11, color: '#185FA5' }}>编辑</button>
+            <button className="icon-btn" onClick={onDelete} style={{ fontSize: 11, color: '#dc2626' }}>删除</button>
           </div>
-        ))}
+        </div>
+      </div>
+
+      {/* Flow chips */}
+      <div className="flow-row">
+        <span className="fb fb-blue" style={{ fontSize: 10, padding: '2px 8px' }}>评论含: &ldquo;{rule.keywords.join('、')}&rdquo;</span>
+        <span className="flow-arrow">&rarr;</span>
+        <span className="fb fb-green" style={{ fontSize: 10, padding: '2px 8px' }}>回复评论</span>
+        <span className="flow-arrow">&rarr;</span>
+        <span className="fb fb-purple" style={{ fontSize: 10, padding: '2px 8px' }}>发送私信</span>
+        <span className="flow-arrow">&rarr;</span>
+        <span className="fb fb-amber" style={{ fontSize: 10, padding: '2px 8px' }}>
+          {rule.follow_up_mode === 'ai' ? 'AI跟进' : '人工跟进'}
+        </span>
+      </div>
+
+      {/* Meta */}
+      <div className="rule-meta">
+        <span className="rule-meta-item">关键词 {rule.keywords.length} 个</span>
+        <span className="rule-meta-item">匹配: {rule.match_mode === 'contains' ? '包含' : rule.match_mode === 'exact' ? '精确' : '正则'}</span>
+        <span className="rule-meta-item">跟进: {rule.follow_up_mode === 'ai' ? 'AI 自动' : '人工'}</span>
       </div>
     </div>
   );

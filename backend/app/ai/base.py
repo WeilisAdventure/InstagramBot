@@ -17,3 +17,8 @@ class AIProvider(ABC):
         Returns {"original": str, "improved": str, "language": "zh"|"en"}
         """
         ...
+
+    @abstractmethod
+    async def translate_message(self, text: str) -> dict:
+        """Translate a message between English and Chinese."""
+        ...
