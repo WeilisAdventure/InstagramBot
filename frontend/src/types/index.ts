@@ -66,10 +66,15 @@ export interface DashboardStats {
 
 export interface Settings {
   ig_connection_status: string;
+  ig_username: string;
+  ig_api_version: string;
   ai_model: string;
   reply_delay_seconds: number;
   translation_strategy: string;
   notification_enabled: boolean;
+  notification_sound: boolean;
+  notification_desktop: boolean;
+  notification_title_flash: boolean;
   auto_reply_enabled: boolean;
   comment_trigger_enabled: boolean;
 }

@@ -2,22 +2,46 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   getConversations,
   getConversation,
+  getSettings,
   updateConversationMode,
   sendMessage,
   assistInput,
   translateMessage,
   generateAIReply,
 } from '../api/client';
-import type { Conversation, ConversationDetail, AssistResult } from '../types';
+import type { Conversation, ConversationDetail, AssistResult, Settings } from '../types';
 
 const avatarColors = ['avatar-blue', 'avatar-pink', 'avatar-green', 'avatar-amber'];
+
+// Notification sound using Web Audio API (no file dependency)
+function playNotificationSound() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch { /* ignore audio errors */ }
+}
+
+function showDesktopNotification(title: string, body: string) {
+  if (Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '/favicon.ico' });
+  }
+}
 
 function getInitials(name: string) {
   return name.slice(0, 2).toUpperCase();
 }
 
 function formatTime(dateStr: string) {
-  const d = new Date(dateStr);
+  const d = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
   const now = new Date();
   const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', timeZone: 'America/Toronto' };
   const time = d.toLocaleTimeString([], opts);
@@ -29,7 +53,7 @@ function formatTime(dateStr: string) {
 }
 
 function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const diff = Date.now() - new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z').getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return '刚刚';
   if (mins < 60) return `${mins}分钟前`;
@@ -55,15 +79,95 @@ export default function Conversations() {
   const [toast, setToast] = useState<{ text: string; type: 'info' | 'warn' | 'error' } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  const [notifSettings, setNotifSettings] = useState<Settings | null>(null);
+  const prevConvsRef = useRef<Conversation[]>([]);
+  const titleFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const originalTitle = useRef(document.title);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  // Load conversation list
+  // Load notification settings
   useEffect(() => {
-    getConversations().then(setConvs).catch(() => {});
+    getSettings().then(setNotifSettings).catch(() => {});
     const timer = setInterval(() => {
-      getConversations().then(setConvs).catch(() => {});
-    }, 4000);
+      getSettings().then(setNotifSettings).catch(() => {});
+    }, 10000);
     return () => clearInterval(timer);
   }, []);
+
+  // Title flash effect
+  useEffect(() => {
+    if (unreadCount > 0 && notifSettings?.notification_enabled && notifSettings?.notification_title_flash) {
+      let show = true;
+      titleFlashRef.current = setInterval(() => {
+        document.title = show ? `(${unreadCount}条新消息) InstaBot` : originalTitle.current;
+        show = !show;
+      }, 1000);
+    } else {
+      if (titleFlashRef.current) clearInterval(titleFlashRef.current);
+      document.title = originalTitle.current;
+    }
+    return () => {
+      if (titleFlashRef.current) clearInterval(titleFlashRef.current);
+      document.title = originalTitle.current;
+    };
+  }, [unreadCount, notifSettings?.notification_enabled, notifSettings?.notification_title_flash]);
+
+  // Clear unread on window focus
+  useEffect(() => {
+    const onFocus = () => setUnreadCount(0);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+
+  // Load conversation list + detect new messages
+  useEffect(() => {
+    getConversations().then((data) => {
+      prevConvsRef.current = data;
+      setConvs(data);
+    }).catch(() => {});
+    const timer = setInterval(() => {
+      getConversations().then((data) => {
+        if (notifSettings?.notification_enabled && prevConvsRef.current.length > 0) {
+          // Detect new user messages by comparing updated_at or conversation count
+          const prevMap = new Map(prevConvsRef.current.map(c => [c.id, c.updated_at]));
+          for (const c of data) {
+            const prevTime = prevMap.get(c.id);
+            if (c.last_message && prevTime && c.updated_at !== prevTime) {
+              // Conversation updated — likely new message
+              if (notifSettings.notification_sound) playNotificationSound();
+              if (notifSettings.notification_desktop) {
+                showDesktopNotification(
+                  `新消息 - ${c.ig_username || c.ig_user_id}`,
+                  c.last_message || ''
+                );
+              }
+              if (notifSettings.notification_title_flash && document.hidden) {
+                setUnreadCount(prev => prev + 1);
+              }
+              break; // One notification per poll cycle
+            }
+            if (!prevTime && c.last_message) {
+              // New conversation
+              if (notifSettings.notification_sound) playNotificationSound();
+              if (notifSettings.notification_desktop) {
+                showDesktopNotification(
+                  `新对话 - ${c.ig_username || c.ig_user_id}`,
+                  c.last_message || ''
+                );
+              }
+              if (notifSettings.notification_title_flash && document.hidden) {
+                setUnreadCount(prev => prev + 1);
+              }
+              break;
+            }
+          }
+        }
+        prevConvsRef.current = data;
+        setConvs(data);
+      }).catch(() => {});
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [notifSettings]);
 
   // Load conversation detail
   const loadDetail = useCallback(() => {
@@ -79,9 +183,10 @@ export default function Conversations() {
 
   useEffect(() => {
     loadDetail();
-    const timer = setInterval(loadDetail, 4000);
+    const interval = mode === 'ai' ? 1500 : 4000;
+    const timer = setInterval(loadDetail, interval);
     return () => clearInterval(timer);
-  }, [loadDetail]);
+  }, [loadDetail, mode]);
 
   useEffect(() => {
     setTimeout(() => {

@@ -13,6 +13,9 @@ DEFAULTS = {
     "reply_delay_seconds": "3",
     "translation_strategy": "auto",
     "notification_enabled": "true",
+    "notification_sound": "true",
+    "notification_desktop": "true",
+    "notification_title_flash": "true",
     "auto_reply_enabled": "true",
     "comment_trigger_enabled": "true",
 }
@@ -39,18 +42,28 @@ async def _set_setting(db: AsyncSession, key: str, value: str):
 
 @router.get("", response_model=SettingsResponse)
 async def get_settings(request: Request = None, db: AsyncSession = Depends(get_db)):
-    # Dynamically check real IG connection status
+    # Dynamically check real IG connection status and account info
     ig_status = "disconnected"
-    if request and hasattr(request.app.state, "ig_client"):
-        ig_client = request.app.state.ig_client
-        if hasattr(ig_client, "connected") and ig_client.connected:
+    ig_username = ""
+    ig_api_version = ""
+    ig_client = getattr(request.app.state, "ig_client", None) if request else None
+    if ig_client:
+        if getattr(ig_client, "connected", False):
             ig_status = "connected"
+        ig_username = getattr(ig_client, "username", "") or ""
+        from app.instagram.graph_api_client import GRAPH_API_BASE
+        ig_api_version = GRAPH_API_BASE.split("/")[-1] if "graph.instagram.com" in GRAPH_API_BASE else ""
     return SettingsResponse(
         ig_connection_status=ig_status,
+        ig_username=ig_username,
+        ig_api_version=ig_api_version,
         ai_model=await _get_setting(db, "ai_model"),
         reply_delay_seconds=int(await _get_setting(db, "reply_delay_seconds")),
         translation_strategy=await _get_setting(db, "translation_strategy"),
         notification_enabled=(await _get_setting(db, "notification_enabled")).lower() in ("true", "1"),
+        notification_sound=(await _get_setting(db, "notification_sound")).lower() in ("true", "1"),
+        notification_desktop=(await _get_setting(db, "notification_desktop")).lower() in ("true", "1"),
+        notification_title_flash=(await _get_setting(db, "notification_title_flash")).lower() in ("true", "1"),
         auto_reply_enabled=(await _get_setting(db, "auto_reply_enabled")).lower() in ("true", "1"),
         comment_trigger_enabled=(await _get_setting(db, "comment_trigger_enabled")).lower() in ("true", "1"),
     )

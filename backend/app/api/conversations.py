@@ -76,12 +76,30 @@ async def send_message(conv_id: int, data: SendMessageRequest, request: Request,
     if not conv:
         raise HTTPException(404, "Conversation not found")
 
+    # Apply translation strategy before sending
+    send_text = data.text
+    from app.models.settings import SystemSettings
+    strategy_result = await db.execute(
+        select(SystemSettings).where(SystemSettings.key == "translation_strategy")
+    )
+    strategy_setting = strategy_result.scalar_one_or_none()
+    strategy = strategy_setting.value if strategy_setting else "auto"
+
+    if strategy == "always":
+        try:
+            ai = request.app.state.ai_provider
+            tr_result = await ai.translate_message(send_text)
+            send_text = tr_result["translated"]
+        except Exception:
+            pass  # Send original if translation fails
+    # "auto" / "never" = send as-is for manual messages
+
     # Try to send via Instagram, but save message regardless
     ig_client = request.app.state.ig_client
     ig_sent = False
     ig_error = ""
     try:
-        ig_sent = await ig_client.send_dm(conv.ig_user_id, data.text)
+        ig_sent = await ig_client.send_dm(conv.ig_user_id, send_text)
     except Exception as e:
         ig_error = str(e)
 
@@ -89,7 +107,7 @@ async def send_message(conv_id: int, data: SendMessageRequest, request: Request,
     msg = Message(
         conversation_id=conv_id,
         role="assistant",
-        content=data.text,
+        content=send_text,
         is_ai_generated=data.is_ai_generated if hasattr(data, 'is_ai_generated') else False,
     )
     db.add(msg)

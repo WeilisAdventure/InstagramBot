@@ -20,6 +20,15 @@ class MessageHandler:
         self.ig = ig
         self.reply_delay = reply_delay
 
+    async def _get_setting_value(self, key: str, default: str = "") -> str:
+        """Read a setting value from DB at runtime."""
+        async with async_session() as db:
+            result = await db.execute(
+                select(SystemSettings).where(SystemSettings.key == key)
+            )
+            setting = result.scalar_one_or_none()
+            return setting.value if setting else default
+
     async def _is_enabled(self, key: str) -> bool:
         async with async_session() as db:
             result = await db.execute(
@@ -85,59 +94,78 @@ class MessageHandler:
             except Exception as e:
                 logger.warning(f"Could not fetch username for {msg.sender_id}: {e}")
 
+        # Phase 1: Save user message immediately so frontend can see it
         async with async_session() as db:
             conv = await self._get_or_create_conversation(
                 db, msg.sender_id, username
             )
-            # Update username if conversation had empty username
             if username and not conv.ig_username:
                 conv.ig_username = username
-            # Save user message
             user_msg = Message(
                 conversation_id=conv.id,
                 role="user",
                 content=msg.text or "",
             )
             db.add(user_msg)
-            await db.flush()
+            conv.updated_at = datetime.now(timezone.utc)
+            await db.commit()
+            conv_id = conv.id
+            conv_mode = conv.mode
 
-            if not auto_reply_on:
-                logger.info("Auto reply disabled, message saved but no AI reply")
-                await db.commit()
-                return
+        if not auto_reply_on:
+            logger.info("Auto reply disabled, message saved but no AI reply")
+            return
 
-            if conv.mode != "ai":
-                logger.info(f"Conversation {conv.id} is in human mode, skipping AI reply")
-                await db.commit()
-                return
+        if conv_mode != "ai":
+            logger.info(f"Conversation {conv_id} is in human mode, skipping AI reply")
+            return
 
-            # Load knowledge and generate reply
+        # Phase 2: Generate and send AI reply in a new session
+        current_model = await self._get_setting_value("ai_model", "claude-sonnet-4-20250514")
+        self.ai.model = current_model
+
+        async with async_session() as db:
             knowledge = await self._load_knowledge_entries(db)
             self.ai.reload_knowledge(knowledge)
-            history = await self._get_conversation_history(db, conv.id)
+            history = await self._get_conversation_history(db, conv_id)
+
+        try:
+            reply_text = await self.ai.generate_reply(msg.text or "", history)
+        except Exception as e:
+            logger.error(f"AI reply failed (is ANTHROPIC_API_KEY set?): {e}")
+            return
+
+        # Apply translation strategy before sending
+        strategy = await self._get_setting_value("translation_strategy", "auto")
+        if strategy == "always":
             try:
-                reply_text = await self.ai.generate_reply(msg.text or "", history)
+                tr_result = await self.ai.translate_message(reply_text)
+                original_reply = reply_text
+                reply_text = tr_result["translated"]
+                logger.info(f"Translation applied (always): {original_reply[:50]}... → {reply_text[:50]}...")
             except Exception as e:
-                logger.error(f"AI reply failed (is ANTHROPIC_API_KEY set?): {e}")
-                await db.commit()
-                return
+                logger.warning(f"Translation failed, sending original reply: {e}")
 
-            # Simulate typing delay
-            if self.reply_delay > 0:
-                await asyncio.sleep(self.reply_delay)
+        # Simulate typing delay (read from DB)
+        delay = int(await self._get_setting_value("reply_delay_seconds", "3"))
+        if delay > 0:
+            await asyncio.sleep(delay)
 
-            # Send reply
-            success = await self.ig.send_dm(msg.sender_id, reply_text)
+        # Send reply
+        success = await self.ig.send_dm(msg.sender_id, reply_text)
 
-            # Save assistant message
+        # Phase 3: Save assistant message
+        async with async_session() as db:
             assistant_msg = Message(
-                conversation_id=conv.id,
+                conversation_id=conv_id,
                 role="assistant",
                 content=reply_text,
                 is_ai_generated=True,
             )
             db.add(assistant_msg)
-            conv.updated_at = datetime.now(timezone.utc)
+            conv = await db.get(Conversation, conv_id)
+            if conv:
+                conv.updated_at = datetime.now(timezone.utc)
             await db.commit()
 
             if success:

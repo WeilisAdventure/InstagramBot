@@ -39,7 +39,7 @@ export default function Settings() {
         <div className="card-surface mb-16">
           <div className="card-row">
             <span className="card-key">Instagram 账号</span>
-            <span className="card-value">@fakebotno</span>
+            <span className="card-value">{settings.ig_username ? `@${settings.ig_username}` : '未连接'}</span>
           </div>
           <div className="card-row">
             <span className="card-key">连接状态</span>
@@ -49,7 +49,7 @@ export default function Settings() {
           </div>
           <div className="card-row">
             <span className="card-key">API 模式</span>
-            <span className="card-value">Graph API v18</span>
+            <span className="card-value">{settings.ig_api_version ? `Graph API ${settings.ig_api_version}` : '-'}</span>
           </div>
         </div>
 
@@ -114,6 +114,39 @@ export default function Settings() {
               onClick={() => update({ notification_enabled: !settings.notification_enabled })}
             />
           </div>
+          {settings.notification_enabled && (
+            <>
+              <div className="card-row" style={{ paddingLeft: 28 }}>
+                <span className="card-key">🔔 桌面通知</span>
+                <button
+                  className={`toggle${settings.notification_desktop ? '' : ' off'}`}
+                  onClick={() => {
+                    if (!settings.notification_desktop && Notification.permission === 'default') {
+                      Notification.requestPermission().then((p) => {
+                        if (p === 'granted') update({ notification_desktop: true });
+                      });
+                    } else {
+                      update({ notification_desktop: !settings.notification_desktop });
+                    }
+                  }}
+                />
+              </div>
+              <div className="card-row" style={{ paddingLeft: 28 }}>
+                <span className="card-key">🔊 提示音</span>
+                <button
+                  className={`toggle${settings.notification_sound ? '' : ' off'}`}
+                  onClick={() => update({ notification_sound: !settings.notification_sound })}
+                />
+              </div>
+              <div className="card-row" style={{ paddingLeft: 28 }}>
+                <span className="card-key">💬 标签页标题闪烁</span>
+                <button
+                  className={`toggle${settings.notification_title_flash ? '' : ' off'}`}
+                  onClick={() => update({ notification_title_flash: !settings.notification_title_flash })}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

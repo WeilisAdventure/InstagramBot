@@ -3,10 +3,15 @@ from pydantic import BaseModel
 
 class SettingsResponse(BaseModel):
     ig_connection_status: str
+    ig_username: str = ""
+    ig_api_version: str = ""
     ai_model: str
     reply_delay_seconds: int
     translation_strategy: str
     notification_enabled: bool
+    notification_sound: bool
+    notification_desktop: bool
+    notification_title_flash: bool
     auto_reply_enabled: bool
     comment_trigger_enabled: bool
 
@@ -16,6 +21,9 @@ class SettingsUpdate(BaseModel):
     reply_delay_seconds: int | None = None
     translation_strategy: str | None = None
     notification_enabled: bool | None = None
+    notification_sound: bool | None = None
+    notification_desktop: bool | None = None
+    notification_title_flash: bool | None = None
     auto_reply_enabled: bool | None = None
     comment_trigger_enabled: bool | None = None
 
