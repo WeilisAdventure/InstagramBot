@@ -38,13 +38,8 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     resolved = result.scalar() or 0
     ai_rate = (resolved / weekly_conversations * 100) if weekly_conversations > 0 else 0
 
-    # Average response time (time between user message and assistant reply)
-    # Simplified: average gap between consecutive user/assistant messages
-    avg_response = 0.0
-
     return DashboardStats(
         weekly_conversations=weekly_conversations,
         ai_resolution_rate=round(ai_rate, 1),
         comment_triggers=comment_triggers,
-        avg_response_time_seconds=avg_response,
     )

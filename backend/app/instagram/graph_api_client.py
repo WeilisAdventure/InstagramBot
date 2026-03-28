@@ -37,7 +37,10 @@ class GraphApiClient(InstagramClient):
                     "access_token": self.token,
                 },
             )
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                logger.error(f"Graph API token verification failed ({resp.status_code}): {resp.text}")
+                self.connected = False
+                return
             data = resp.json()
             logger.info(f"Graph API connected: {data.get('username', data.get('name', 'unknown'))} (ID: {data.get('id')})")
             self.connected = True

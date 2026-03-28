@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { getKnowledge, createKnowledge, updateKnowledge, deleteKnowledge } from '../api/client';
+import { useEffect, useState, useRef } from 'react';
+import { getKnowledge, createKnowledge, updateKnowledge, deleteKnowledge, deleteAllKnowledge, uploadKnowledgeFile } from '../api/client';
 import type { KnowledgeEntry } from '../types';
 
 const icons = ['💰', '📦', '🔧', '🎁', '💡', '🏷️', '📋', '🔔'];
@@ -8,9 +8,25 @@ const iconBgs = ['avatar-blue', 'avatar-green', 'avatar-amber', 'avatar-pink', '
 export default function Knowledge() {
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [editing, setEditing] = useState<{ id?: number; question: string; answer: string; category: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const load = () => getKnowledge().then(setEntries).catch(() => {});
   useEffect(() => { load(); }, []);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      await uploadKnowledgeFile(file);
+      load();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : '上传失败');
+    }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = '';
+  };
 
   const save = async () => {
     if (!editing) return;
@@ -38,51 +54,72 @@ export default function Knowledge() {
           <div className="panel-sub">AI 回复参考的问答数据</div>
         </div>
         {!editing && (
-          <button className="btn-primary" onClick={() => setEditing({ question: '', answer: '', category: '' })}>
-            + 添加知识
-          </button>
+          <div className="flex gap-8">
+            {entries.length > 0 && (
+              <button className="btn" style={{ color: '#dc2626', borderColor: '#dc2626' }} onClick={async () => {
+                if (!confirm('确定清空全部知识库？')) return;
+                await deleteAllKnowledge();
+                load();
+              }}>清空</button>
+            )}
+            <button className="btn" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              {uploading ? '上传中...' : '上传文件'}
+            </button>
+            <input ref={fileRef} type="file" accept=".txt,.md,.csv,.json" onChange={handleUpload} style={{ display: 'none' }} />
+            <button className="btn-primary" onClick={() => setEditing({ question: '', answer: '', category: '' })}>
+              + 添加知识
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Scrollable Content */}
-      <div className="scroll-y">
-        {/* Edit Form */}
-        {editing && (
-          <div className="card mb-16" style={{ padding: 13 }}>
-            <div className="field">
-              <label className="uppercase-label" style={{ display: 'block', marginBottom: 6 }}>问题</label>
-              <input
-                type="text"
-                value={editing.question}
-                onChange={(e) => setEditing({ ...editing, question: e.target.value })}
-                placeholder="例：产品价格是多少？"
-              />
+      {/* Edit Modal */}
+      {editing && (
+        <div className="modal-overlay" onClick={() => setEditing(null)}>
+          <div className="modal" style={{ marginTop: '10vh' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">{editing.id ? '编辑知识' : '添加知识'}</div>
+              <button className="modal-close" onClick={() => setEditing(null)}>&times;</button>
             </div>
-            <div className="field">
-              <label className="uppercase-label" style={{ display: 'block', marginBottom: 6 }}>回答</label>
-              <textarea
-                rows={3}
-                value={editing.answer}
-                onChange={(e) => setEditing({ ...editing, answer: e.target.value })}
-                placeholder="AI 回复时参考的标准答案..."
-              />
+            <div className="modal-body">
+              <div className="field">
+                <label className="uppercase-label" style={{ display: 'block', marginBottom: 6 }}>问题</label>
+                <input
+                  type="text"
+                  value={editing.question}
+                  onChange={(e) => setEditing({ ...editing, question: e.target.value })}
+                  placeholder="例：产品价格是多少？"
+                />
+              </div>
+              <div className="field">
+                <label className="uppercase-label" style={{ display: 'block', marginBottom: 6 }}>回答</label>
+                <textarea
+                  rows={3}
+                  value={editing.answer}
+                  onChange={(e) => setEditing({ ...editing, answer: e.target.value })}
+                  placeholder="AI 回复时参考的标准答案..."
+                />
+              </div>
+              <div className="field">
+                <label className="uppercase-label" style={{ display: 'block', marginBottom: 6 }}>分类（可选）</label>
+                <input
+                  type="text"
+                  value={editing.category}
+                  onChange={(e) => setEditing({ ...editing, category: e.target.value })}
+                  placeholder="例：价格、配送、售后"
+                />
+              </div>
             </div>
-            <div className="field">
-              <label className="uppercase-label" style={{ display: 'block', marginBottom: 6 }}>分类（可选）</label>
-              <input
-                type="text"
-                value={editing.category}
-                onChange={(e) => setEditing({ ...editing, category: e.target.value })}
-                placeholder="例：价格、配送、售后"
-              />
-            </div>
-            <div className="flex gap-8">
+            <div className="modal-footer">
+              <button className="btn" onClick={() => setEditing(null)}>取消</button>
               <button className="btn-primary" onClick={save}>保存</button>
-              <button className="icon-btn" onClick={() => setEditing(null)} style={{ fontSize: 12 }}>取消</button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
+      {/* Scrollable Content */}
+      <div className="scroll-y">
         {/* List */}
         <div className="flex-col gap-8 mb-16">
           {entries.length === 0 && !editing && (

@@ -49,10 +49,9 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="stats-grid mb-12">
-        <StatCard value={stats?.weekly_conversations ?? '-'} label="本周对话数" change="+12%" />
-        <StatCard value={stats ? `${stats.ai_resolution_rate}%` : '-'} label="AI 解决率" change="+3%" />
-        <StatCard value={stats?.comment_triggers ?? '-'} label="评论触发次数" change="+8%" />
-        <StatCard value={stats ? `${stats.avg_response_time_seconds.toFixed(1)}s` : '-'} label="平均响应" change="-0.5s" />
+        <StatCard value={stats?.weekly_conversations ?? '-'} label="本周对话数" />
+        <StatCard value={stats ? `${stats.ai_resolution_rate}%` : '-'} label="AI 解决率" />
+        <StatCard value={stats?.comment_triggers ?? '-'} label="评论触发次数" />
       </div>
 
       {/* Feature Cards 2x2 */}
@@ -68,12 +67,11 @@ export default function Dashboard() {
 
 /* ---- Sub-components ---- */
 
-function StatCard({ value, label, change }: { value: string | number; label: string; change: string }) {
+function StatCard({ value, label }: { value: string | number; label: string }) {
   return (
     <div className="stat-card">
       <div className="stat-number">{value}</div>
       <div className="stat-label">{label}</div>
-      <div className="stat-change">{change}</div>
     </div>
   );
 }

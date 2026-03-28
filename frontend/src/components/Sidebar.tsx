@@ -91,18 +91,18 @@ export default function Sidebar() {
       {/* Bottom toggles & status */}
       <div className="flex-col gap-6" style={{ padding: '10px 12px', borderTop: '0.5px solid var(--border-soft)' }}>
         <div className="flex items-center justify-between">
-          <span className="text-xs">AI 自动回复</span>
+          <div className="flex-col" style={{ gap: 1 }}>
+            <span className="text-xs">AI 自动回复</span>
+            <span style={{ fontSize: 10, color: t1 ? '#16a34a' : 'var(--text-muted)' }}>{t1 ? '运行中' : '已暂停'}</span>
+          </div>
           <button className={`toggle${t1 ? '' : ' off'}`} onClick={() => toggle(1)} />
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-xs">评论触发</span>
+          <div className="flex-col" style={{ gap: 1 }}>
+            <span className="text-xs">评论触发</span>
+            <span style={{ fontSize: 10, color: t2 ? '#16a34a' : 'var(--text-muted)' }}>{t2 ? '运行中' : '已暂停'}</span>
+          </div>
           <button className={`toggle${t2 ? '' : ' off'}`} onClick={() => toggle(2)} />
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs">系统状态</span>
-          <span className={`badge ${allOn ? 'badge-on' : 'badge-off'}`}>
-            {allOn ? '运行中' : '已暂停'}
-          </span>
         </div>
       </div>
     </aside>

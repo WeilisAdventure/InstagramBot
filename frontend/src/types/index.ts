@@ -61,7 +61,6 @@ export interface DashboardStats {
   weekly_conversations: number;
   ai_resolution_rate: number;
   comment_triggers: number;
-  avg_response_time_seconds: number;
 }
 
 export interface Settings {

@@ -69,13 +69,11 @@ class MessageHandler:
             .limit(limit)
         )
         messages = list(reversed(result.scalars().all()))
-        return [{"role": m.role, "content": m.content} for m in messages]
+        return [{"role": m.role, "content": m.content} for m in messages if m.role in ("user", "assistant") and m.content and m.content.strip()]
 
     async def handle_dm(self, msg: IncomingMessage):
         """Handle an incoming direct message."""
-        if not await self._is_enabled("auto_reply_enabled"):
-            logger.info("Auto reply disabled, skipping DM")
-            return
+        auto_reply_on = await self._is_enabled("auto_reply_enabled")
 
         # If username is empty (webhook mode), try to fetch it via Graph API
         username = msg.sender_username
@@ -102,6 +100,11 @@ class MessageHandler:
             )
             db.add(user_msg)
             await db.flush()
+
+            if not auto_reply_on:
+                logger.info("Auto reply disabled, message saved but no AI reply")
+                await db.commit()
+                return
 
             if conv.mode != "ai":
                 logger.info(f"Conversation {conv.id} is in human mode, skipping AI reply")

@@ -35,6 +35,7 @@ class ConversationDetail(ConversationResponse):
 
 class SendMessageRequest(BaseModel):
     text: str
+    is_ai_generated: bool = False
 
 
 class AssistRequest(BaseModel):

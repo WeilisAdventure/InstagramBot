@@ -24,7 +24,10 @@ async def verify_webhook(request: Request):
 
     if hub_mode == "subscribe" and hub_verify_token == settings.instagram_verify_token:
         logger.info("Webhook verification successful")
-        return int(hub_challenge)
+        try:
+            return int(hub_challenge)
+        except ValueError:
+            return hub_challenge
 
     logger.warning(f"Webhook verification failed: mode={hub_mode}, token_match={hub_verify_token == settings.instagram_verify_token}")
     raise HTTPException(403, "Verification failed")

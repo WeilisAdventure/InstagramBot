@@ -38,9 +38,15 @@ async def _set_setting(db: AsyncSession, key: str, value: str):
 
 
 @router.get("", response_model=SettingsResponse)
-async def get_settings(db: AsyncSession = Depends(get_db)):
+async def get_settings(request: Request = None, db: AsyncSession = Depends(get_db)):
+    # Dynamically check real IG connection status
+    ig_status = "disconnected"
+    if request and hasattr(request.app.state, "ig_client"):
+        ig_client = request.app.state.ig_client
+        if hasattr(ig_client, "connected") and ig_client.connected:
+            ig_status = "connected"
     return SettingsResponse(
-        ig_connection_status=await _get_setting(db, "ig_connection_status"),
+        ig_connection_status=ig_status,
         ai_model=await _get_setting(db, "ai_model"),
         reply_delay_seconds=int(await _get_setting(db, "reply_delay_seconds")),
         translation_strategy=await _get_setting(db, "translation_strategy"),
@@ -51,9 +57,9 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("", response_model=SettingsResponse)
-async def update_settings(data: SettingsUpdate, db: AsyncSession = Depends(get_db)):
+async def update_settings(data: SettingsUpdate, request: Request, db: AsyncSession = Depends(get_db)):
     updates = data.model_dump(exclude_unset=True)
     for key, val in updates.items():
         await _set_setting(db, key, str(val).lower() if isinstance(val, bool) else str(val))
     await db.commit()
-    return await get_settings(db=db)
+    return await get_settings(request=request, db=db)

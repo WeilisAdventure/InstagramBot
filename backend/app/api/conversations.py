@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,27 +70,39 @@ async def update_mode(conv_id: int, data: UpdateModeRequest, db: AsyncSession = 
     return {"ok": True, "mode": conv.mode}
 
 
-@router.post("/{conv_id}/send", response_model=MessageResponse)
+@router.post("/{conv_id}/send")
 async def send_message(conv_id: int, data: SendMessageRequest, request: Request, db: AsyncSession = Depends(get_db)):
     conv = await db.get(Conversation, conv_id)
     if not conv:
         raise HTTPException(404, "Conversation not found")
 
+    # Try to send via Instagram, but save message regardless
     ig_client = request.app.state.ig_client
-    success = await ig_client.send_dm(conv.ig_user_id, data.text)
-    if not success:
-        raise HTTPException(500, "Failed to send message")
+    ig_sent = False
+    ig_error = ""
+    try:
+        ig_sent = await ig_client.send_dm(conv.ig_user_id, data.text)
+    except Exception as e:
+        ig_error = str(e)
 
+    # Always save the message to DB
     msg = Message(
         conversation_id=conv_id,
         role="assistant",
         content=data.text,
-        is_ai_generated=False,
+        is_ai_generated=data.is_ai_generated if hasattr(data, 'is_ai_generated') else False,
     )
     db.add(msg)
+    conv.updated_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(msg)
-    return msg
+
+    result = MessageResponse.model_validate(msg)
+    return {
+        **result.model_dump(),
+        "ig_sent": ig_sent,
+        "ig_error": ig_error if not ig_sent else "",
+    }
 
 
 @router.post("/{conv_id}/assist", response_model=AssistResponse)
@@ -119,7 +132,7 @@ async def generate_reply(conv_id: int, request: Request, db: AsyncSession = Depe
         select(Message).where(Message.conversation_id == conv_id).order_by(Message.created_at)
     )
     messages = msg_result.scalars().all()
-    history = [{"role": m.role, "content": m.content} for m in messages]
+    history = [{"role": m.role, "content": m.content} for m in messages if m.role in ("user", "assistant") and m.content and m.content.strip()]
 
     # Load knowledge
     from app.models.knowledge import KnowledgeEntry
