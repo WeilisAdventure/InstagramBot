@@ -7,6 +7,7 @@ export interface Rule {
   dm_template: string;
   follow_up_mode: string;
   is_active: boolean;
+  trigger_count: number;
   created_at: string;
   updated_at: string;
 }

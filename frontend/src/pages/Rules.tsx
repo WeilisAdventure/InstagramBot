@@ -195,9 +195,6 @@ function RuleCard({ rule, onEdit, onDelete }: { rule: Rule; onEdit: () => void; 
           </span>
         </div>
         <div className="flex items-center gap-8">
-          <span className={`badge ${rule.is_active ? 'badge-on' : 'badge-off'}`}>
-            {rule.is_active ? '运行中' : '已暂停'}
-          </span>
           <div className="flex gap-8" style={{ opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
             <button className="icon-btn" onClick={onEdit} style={{ fontSize: 11, color: '#185FA5' }}>编辑</button>
             <button className="icon-btn" onClick={onDelete} style={{ fontSize: 11, color: '#dc2626' }}>删除</button>
@@ -223,6 +220,7 @@ function RuleCard({ rule, onEdit, onDelete }: { rule: Rule; onEdit: () => void; 
         <span className="rule-meta-item">关键词 {rule.keywords.length} 个</span>
         <span className="rule-meta-item">匹配: {rule.match_mode === 'contains' ? '包含' : rule.match_mode === 'exact' ? '精确' : '正则'}</span>
         <span className="rule-meta-item">跟进: {rule.follow_up_mode === 'ai' ? 'AI 自动' : '人工'}</span>
+        <span className="rule-meta-item">已触发 <span>{rule.trigger_count}</span> 次</span>
       </div>
     </div>
   );

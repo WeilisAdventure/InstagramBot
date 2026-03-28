@@ -30,12 +30,38 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     )
     comment_triggers = result.scalar() or 0
 
-    # AI resolution rate: conversations where AI replied and user didn't send another message
+    # AI resolution rate: conversations where last message is from assistant (AI)
+    # and user hasn't replied for 24+ hours — meaning AI resolved the issue
+    day_ago = datetime.now(timezone.utc) - timedelta(hours=24)
     result = await db.execute(
         select(func.count(Conversation.id))
-        .where(Conversation.created_at >= week_ago, Conversation.is_resolved == True)
+        .where(
+            Conversation.created_at >= week_ago,
+            Conversation.mode == "ai",
+            Conversation.updated_at < day_ago,
+        )
     )
-    resolved = result.scalar() or 0
+    stale_ai_convs = result.scalar() or 0
+
+    # Among those, count ones where the last message is from assistant
+    # (user didn't come back after AI reply = resolved)
+    resolved = 0
+    if stale_ai_convs > 0:
+        from sqlalchemy.orm import selectinload
+        result = await db.execute(
+            select(Conversation)
+            .where(
+                Conversation.created_at >= week_ago,
+                Conversation.mode == "ai",
+                Conversation.updated_at < day_ago,
+            )
+            .options(selectinload(Conversation.messages))
+        )
+        for conv in result.scalars().all():
+            msgs = [m for m in conv.messages if m.role in ("user", "assistant")]
+            if msgs and msgs[-1].role == "assistant":
+                resolved += 1
+
     ai_rate = (resolved / weekly_conversations * 100) if weekly_conversations > 0 else 0
 
     return DashboardStats(

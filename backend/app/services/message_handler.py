@@ -172,7 +172,7 @@ class MessageHandler:
                 dm_text = render_template(rule.dm_template, name=comment.username)
                 await self.ig.send_dm(comment.user_id, dm_text)
 
-            # Create conversation
+            # Create or update conversation with trigger info
             mode = rule.follow_up_mode  # "ai" or "human"
             conv = await self._get_or_create_conversation(
                 db, comment.user_id, comment.username,
@@ -180,6 +180,9 @@ class MessageHandler:
                 rule_id=rule.id,
                 mode=mode,
             )
+            # Ensure trigger info is set even if conversation was reused
+            conv.trigger_source = "comment_rule"
+            conv.trigger_rule_id = rule.id
             system_msg = Message(
                 conversation_id=conv.id,
                 role="system",

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.rule import CommentTriggerRule
+from app.models.conversation import Conversation
 from app.schemas.rule import RuleCreate, RuleUpdate, RuleResponse
 
 router = APIRouter(prefix="/api/rules", tags=["rules"])
@@ -13,7 +14,22 @@ async def list_rules(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(CommentTriggerRule).order_by(CommentTriggerRule.created_at.desc())
     )
-    return result.scalars().all()
+    rules = result.scalars().all()
+
+    # Count triggers per rule
+    count_result = await db.execute(
+        select(Conversation.trigger_rule_id, func.count(Conversation.id))
+        .where(Conversation.trigger_rule_id.isnot(None))
+        .group_by(Conversation.trigger_rule_id)
+    )
+    counts = dict(count_result.all())
+
+    return [
+        RuleResponse.model_validate(r, from_attributes=True).model_copy(
+            update={"trigger_count": counts.get(r.id, 0)}
+        )
+        for r in rules
+    ]
 
 
 @router.post("", response_model=RuleResponse, status_code=201)

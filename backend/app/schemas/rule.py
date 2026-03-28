@@ -31,6 +31,7 @@ class RuleResponse(BaseModel):
     dm_template: str
     follow_up_mode: str
     is_active: bool
+    trigger_count: int = 0
     created_at: datetime
     updated_at: datetime
 
