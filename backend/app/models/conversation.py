@@ -10,6 +10,7 @@ class Conversation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ig_user_id: Mapped[str] = mapped_column(String(100), index=True)
     ig_username: Mapped[str] = mapped_column(String(100), default="")
+    ig_profile_pic: Mapped[str | None] = mapped_column(String(500), nullable=True)
     trigger_source: Mapped[str] = mapped_column(String(50), default="direct_dm")  # "comment_rule" | "direct_dm" | "simulation"
     trigger_rule_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("comment_trigger_rules.id"), nullable=True)
     mode: Mapped[str] = mapped_column(String(20), default="ai")  # "ai" | "human"

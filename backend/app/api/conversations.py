@@ -30,6 +30,8 @@ async def list_conversations(db: AsyncSession = Depends(get_db)):
         last_msg = msg_result.scalar_one_or_none()
         data = ConversationResponse.model_validate(conv)
         data.last_message = last_msg.content if last_msg else None
+        data.last_message_role = last_msg.role if last_msg else None
+        data.last_message_is_ai = last_msg.is_ai_generated if last_msg else None
         response.append(data)
     return response
 
@@ -49,6 +51,7 @@ async def get_conversation(conv_id: int, db: AsyncSession = Depends(get_db)):
         "id": conv.id,
         "ig_user_id": conv.ig_user_id,
         "ig_username": conv.ig_username,
+        "ig_profile_pic": conv.ig_profile_pic,
         "trigger_source": conv.trigger_source,
         "trigger_rule_id": conv.trigger_rule_id,
         "mode": conv.mode,
@@ -65,7 +68,11 @@ async def update_mode(conv_id: int, data: UpdateModeRequest, db: AsyncSession = 
     conv = await db.get(Conversation, conv_id)
     if not conv:
         raise HTTPException(404, "Conversation not found")
+    original_updated_at = conv.updated_at
     conv.mode = data.mode
+    await db.flush()
+    # Restore updated_at so mode change alone doesn't reorder the list
+    conv.updated_at = original_updated_at
     await db.commit()
     return {"ok": True, "mode": conv.mode}
 
@@ -159,6 +166,36 @@ async def generate_reply(conv_id: int, request: Request, db: AsyncSession = Depe
     knowledge = [{"question": e.question, "answer": e.answer} for e in entries]
 
     ai = request.app.state.ai_provider
+    # Sync model with current setting
+    from app.models.settings import SystemSettings
+    model_result = await db.execute(select(SystemSettings).where(SystemSettings.key == "ai_model"))
+    model_setting = model_result.scalar_one_or_none()
+    if model_setting:
+        from app.ai.factory import get_provider_for_model, create_provider_for_model
+        from app.config import settings as app_settings
+        current_model = model_setting.value
+        provider_result = await db.execute(select(SystemSettings).where(SystemSettings.key == "ai_model_provider"))
+        provider_setting = provider_result.scalar_one_or_none()
+        model_provider = provider_setting.value if provider_setting else ""
+        if get_provider_for_model(current_model, model_provider) != get_provider_for_model(getattr(ai, 'model', '')):
+            ck = await db.execute(select(SystemSettings).where(SystemSettings.key == "custom_api_key"))
+            cu = await db.execute(select(SystemSettings).where(SystemSettings.key == "custom_base_url"))
+            ck_s, cu_s = ck.scalar_one_or_none(), cu.scalar_one_or_none()
+            custom_key = ck_s.value if ck_s else ""
+            custom_url = cu_s.value if cu_s else ""
+            ai = create_provider_for_model(
+                model_id=current_model,
+                anthropic_key=app_settings.anthropic_api_key,
+                openai_key=app_settings.openai_api_key,
+                openai_base_url=app_settings.openai_base_url,
+                google_key=app_settings.google_api_key,
+                provider_override=model_provider,
+                custom_api_key=custom_key,
+                custom_base_url=custom_url,
+            )
+            request.app.state.ai_provider = ai
+        else:
+            ai.model = current_model
     ai.reload_knowledge(knowledge)
 
     # Get last user message

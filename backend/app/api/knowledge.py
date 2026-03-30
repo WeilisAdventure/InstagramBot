@@ -1,3 +1,6 @@
+import asyncio
+import csv
+import io
 import json
 import logging
 import anthropic
@@ -67,66 +70,147 @@ async def delete_all_entries(db: AsyncSession = Depends(get_db)):
     await db.commit()
 
 
+# --- File upload helpers ---
+
+def _parse_csv_entries(content: str) -> list[dict]:
+    """Parse CSV with question,answer[,category] columns."""
+    reader = csv.DictReader(io.StringIO(content))
+    entries = []
+    for row in reader:
+        q = row.get("question") or row.get("Q") or row.get("问题") or ""
+        a = row.get("answer") or row.get("A") or row.get("回答") or row.get("答案") or ""
+        cat = row.get("category") or row.get("分类") or ""
+        if q.strip() and a.strip():
+            entries.append({"question": q.strip(), "answer": a.strip(), "category": cat.strip()})
+    return entries
+
+
+def _parse_json_entries(content: str) -> list[dict]:
+    """Parse JSON array of {question, answer} objects."""
+    data = json.loads(content)
+    if isinstance(data, dict):
+        for key in ("entries", "data", "items", "knowledge"):
+            if key in data and isinstance(data[key], list):
+                data = data[key]
+                break
+    if not isinstance(data, list):
+        return []
+    entries = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        q = str(item.get("question", "") or item.get("Q", "") or item.get("问题", "")).strip()
+        a = str(item.get("answer", "") or item.get("A", "") or item.get("回答", "") or item.get("答案", "")).strip()
+        cat = str(item.get("category", "") or item.get("分类", "")).strip()
+        if q and a:
+            entries.append({"question": q, "answer": a, "category": cat})
+    return entries
+
+
+def _split_text(content: str, max_chars: int = 15000) -> list[str]:
+    """Split text into chunks at paragraph boundaries."""
+    if len(content) <= max_chars:
+        return [content]
+    chunks = []
+    while content:
+        if len(content) <= max_chars:
+            chunks.append(content)
+            break
+        cut = content.rfind("\n\n", 0, max_chars)
+        if cut < max_chars // 2:
+            cut = content.rfind("\n", 0, max_chars)
+        if cut < max_chars // 2:
+            cut = max_chars
+        chunks.append(content[:cut])
+        content = content[cut:].lstrip()
+    return chunks
+
+
+async def _ai_extract_chunk(client, model: str, chunk: str, filename: str) -> list[dict]:
+    """Use AI to extract Q&A pairs from one text chunk."""
+    prompt = (
+        "从以下文件内容中提取所有可以作为客服知识库的问答对。\n"
+        f"文件名: {filename}\n\n"
+        "要求:\n"
+        "1. 每条包含 question（用户可能会问的问题）和 answer（标准回答，保持简洁，不超过200字）\n"
+        "2. 如果内容是产品信息、政策说明等，自行拆分成多个合理的问答对\n"
+        "3. 可选添加 category 分类\n"
+        "4. 返回纯 JSON 数组，不要 markdown 代码块\n"
+        '5. 格式: [{"question": "...", "answer": "...", "category": "..."}]\n\n'
+        f"文件内容:\n{chunk}"
+    )
+    response = await client.messages.create(
+        model=model,
+        max_tokens=16000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
+        if raw.endswith("```"):
+            raw = raw[:-3]
+        raw = raw.strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        last_brace = raw.rfind("}")
+        if last_brace > 0:
+            return json.loads(raw[:last_brace + 1] + "]")
+        raise
+
+
 @router.post("/upload", response_model=list[KnowledgeResponse], status_code=201)
 async def upload_knowledge_file(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Upload any text file — AI extracts Q&A pairs automatically."""
+    """Upload a file — structured files parsed directly, others use AI with auto-chunking."""
     content = (await file.read()).decode("utf-8")
-    filename = file.filename or "unknown"
+    filename = (file.filename or "unknown").lower()
+    original_name = file.filename or "unknown"
 
-    # Truncate very large files to avoid token limits
-    if len(content) > 30000:
-        content = content[:30000]
+    entries: list[dict] = []
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    prompt = (
-        f"从以下文件内容中提取所有可以作为客服知识库的问答对。\n"
-        f"文件名: {filename}\n\n"
-        f"要求:\n"
-        f"1. 每条包含 question（用户可能会问的问题）和 answer（标准回答，保持简洁，不超过200字）\n"
-        f"2. 如果内容是产品信息、政策说明等，自行拆分成多个合理的问答对\n"
-        f"3. 可选添加 category 分类\n"
-        f"4. 返回纯 JSON 数组，不要 markdown 代码块\n"
-        f"5. 格式: [{{\"question\": \"...\", \"answer\": \"...\", \"category\": \"...\"}}]\n\n"
-        f"文件内容:\n{content}"
-    )
+    # Strategy 1: Direct parsing for structured files (no AI needed)
+    if filename.endswith(".csv"):
+        entries = _parse_csv_entries(content)
+        if entries:
+            logger.info(f"Parsed {len(entries)} Q&A pairs from CSV: {original_name}")
 
-    try:
-        response = await client.messages.create(
-            model=settings.ai_model,
-            max_tokens=16000,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text.strip()
-        # Strip markdown code fences if present
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-            raw = raw.strip()
-        # If JSON was truncated (output hit token limit), salvage complete entries
+    elif filename.endswith(".json"):
         try:
-            entries = json.loads(raw)
+            entries = _parse_json_entries(content)
+            if entries:
+                logger.info(f"Parsed {len(entries)} Q&A pairs from JSON: {original_name}")
         except json.JSONDecodeError:
-            last_brace = raw.rfind("}")
-            if last_brace > 0:
-                raw_fixed = raw[:last_brace + 1] + "]"
-                entries = json.loads(raw_fixed)
-                logger.info(f"Salvaged truncated JSON for {filename}: parsed partial array")
-            else:
-                raise
-    except json.JSONDecodeError:
-        logger.error(f"AI returned invalid JSON for file {filename}: {raw[:200]}")
-        raise HTTPException(400, "AI 无法从文件中提取有效的问答对")
-    except Exception as e:
-        logger.error(f"AI extraction failed for file {filename}: {e}")
-        raise HTTPException(500, f"AI 提取失败: {e}")
+            pass  # Fall through to AI extraction
 
-    if not isinstance(entries, list) or not entries:
+    # Strategy 2: AI extraction with auto-chunking (parallel) for large files
+    if not entries:
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        chunks = _split_text(content)
+        logger.info(f"AI extracting from {original_name}: {len(content)} chars, {len(chunks)} chunk(s)")
+
+        async def extract_one(i: int, chunk: str) -> list[dict]:
+            try:
+                result = await _ai_extract_chunk(client, settings.ai_model, chunk, original_name)
+                if isinstance(result, list):
+                    logger.info(f"Chunk {i+1}/{len(chunks)}: extracted {len(result)} entries")
+                    return result
+            except json.JSONDecodeError:
+                logger.warning(f"Chunk {i+1}/{len(chunks)}: AI returned invalid JSON, skipping")
+            except Exception as e:
+                logger.error(f"Chunk {i+1}/{len(chunks)} extraction failed: {e}")
+            return []
+
+        results = await asyncio.gather(*[extract_one(i, c) for i, c in enumerate(chunks)])
+        for chunk_entries in results:
+            entries.extend(chunk_entries)
+
+    if not entries:
         raise HTTPException(400, "未能从文件中提取到任何问答对")
 
+    # Save to DB
     created = []
     for e in entries:
         q = str(e.get("question", "")).strip()
@@ -147,4 +231,5 @@ async def upload_knowledge_file(
     if not created:
         raise HTTPException(400, "未能从文件中提取到有效的问答对")
 
+    logger.info(f"Knowledge upload complete: {len(created)} entries from {original_name}")
     return created

@@ -45,6 +45,7 @@ export interface Conversation {
   id: number;
   ig_user_id: string;
   ig_username: string;
+  ig_profile_pic: string | null;
   trigger_source: string;
   trigger_rule_id: number | null;
   mode: string;
@@ -52,6 +53,8 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   last_message: string | null;
+  last_message_role: string | null;
+  last_message_is_ai: boolean | null;
 }
 
 export interface ConversationDetail extends Conversation {
@@ -69,6 +72,9 @@ export interface Settings {
   ig_username: string;
   ig_api_version: string;
   ai_model: string;
+  ai_model_provider: string;
+  custom_api_key: string;
+  custom_base_url: string;
   reply_delay_seconds: number;
   translation_strategy: string;
   notification_enabled: boolean;

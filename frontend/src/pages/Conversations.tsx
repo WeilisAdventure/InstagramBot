@@ -85,12 +85,13 @@ export default function Conversations() {
   const originalTitle = useRef(document.title);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Load notification settings
+
+  // Load settings (frequent poll so global toggle changes reflect quickly)
   useEffect(() => {
     getSettings().then(setNotifSettings).catch(() => {});
     const timer = setInterval(() => {
       getSettings().then(setNotifSettings).catch(() => {});
-    }, 10000);
+    }, 2000);
     return () => clearInterval(timer);
   }, []);
 
@@ -128,30 +129,18 @@ export default function Conversations() {
     const timer = setInterval(() => {
       getConversations().then((data) => {
         if (notifSettings?.notification_enabled && prevConvsRef.current.length > 0) {
-          // Detect new user messages by comparing updated_at or conversation count
           const prevMap = new Map(prevConvsRef.current.map(c => [c.id, c.updated_at]));
           for (const c of data) {
+            // Only notify when last message is from the user (not our own replies)
+            if (c.last_message_role !== 'user') continue;
             const prevTime = prevMap.get(c.id);
-            if (c.last_message && prevTime && c.updated_at !== prevTime) {
-              // Conversation updated — likely new message
+            const isNew = !prevTime && c.last_message;
+            const isUpdated = prevTime && c.updated_at !== prevTime && c.last_message;
+            if (isNew || isUpdated) {
               if (notifSettings.notification_sound) playNotificationSound();
               if (notifSettings.notification_desktop) {
                 showDesktopNotification(
-                  `新消息 - ${c.ig_username || c.ig_user_id}`,
-                  c.last_message || ''
-                );
-              }
-              if (notifSettings.notification_title_flash && document.hidden) {
-                setUnreadCount(prev => prev + 1);
-              }
-              break; // One notification per poll cycle
-            }
-            if (!prevTime && c.last_message) {
-              // New conversation
-              if (notifSettings.notification_sound) playNotificationSound();
-              if (notifSettings.notification_desktop) {
-                showDesktopNotification(
-                  `新对话 - ${c.ig_username || c.ig_user_id}`,
+                  `${isNew ? '新对话' : '新消息'} - ${c.ig_username || c.ig_user_id}`,
                   c.last_message || ''
                 );
               }
@@ -324,9 +313,13 @@ export default function Conversations() {
                 background: c.id === selectedId ? 'var(--bg-secondary)' : undefined,
               }}
             >
-              <div className={`avatar avatar-md ${avatarColors[i % avatarColors.length]}`}>
-                {getInitials(c.ig_username || c.ig_user_id)}
-              </div>
+              {c.ig_profile_pic ? (
+                <img src={c.ig_profile_pic} className="avatar avatar-md" style={{ objectFit: 'cover' }} />
+              ) : (
+                <div className={`avatar avatar-md ${avatarColors[i % avatarColors.length]}`}>
+                  {getInitials(c.ig_username || c.ig_user_id)}
+                </div>
+              )}
               <div className="list-item-info">
                 <div className="list-item-name">{c.ig_username || c.ig_user_id}</div>
                 <div className="list-item-last">{c.last_message || '暂无消息'}</div>
@@ -335,10 +328,12 @@ export default function Conversations() {
                 <span className="text-xs">{timeAgo(c.updated_at)}</span>
                 <div className="flex items-center gap-6">
                   {!c.is_resolved && <span className="unread-dot" />}
-                  {c.mode === 'ai' ? (
-                    <span className="tag-pill tag-ai">AI</span>
-                  ) : (
-                    <span className="tag-pill tag-human">人工</span>
+                  {c.last_message_role === 'assistant' && (
+                    c.last_message_is_ai ? (
+                      <span className="tag-pill tag-ai">AI</span>
+                    ) : (
+                      <span className="tag-pill tag-human">人工</span>
+                    )
                   )}
                 </div>
               </div>
@@ -361,12 +356,15 @@ export default function Conversations() {
           <>
             {/* Chat Header */}
             <div className="panel-header" style={{ background: 'var(--bg-primary)', gap: 10 }}>
-              <div className={`avatar avatar-sm ${avatarColors[detail.id % avatarColors.length]}`}>
-                {initials}
-              </div>
+              {detail.ig_profile_pic ? (
+                <img src={detail.ig_profile_pic} className="avatar avatar-sm" style={{ objectFit: 'cover' }} />
+              ) : (
+                <div className={`avatar avatar-sm ${avatarColors[detail.id % avatarColors.length]}`}>
+                  {initials}
+                </div>
+              )}
               <div className="flex-1">
                 <div className="panel-title">{username}</div>
-                <div className="panel-sub">Instagram DM</div>
               </div>
               {detail.trigger_source === 'comment_rule' && (
                 <span className="tag-pill tag-ai" style={{ fontSize: 10 }}>由评论触发</span>
@@ -453,29 +451,38 @@ export default function Conversations() {
 
             {/* Mode Switch */}
             <div style={{ padding: '8px 16px', borderTop: '0.5px solid var(--border-soft)', background: 'var(--bg-primary)', flexShrink: 0 }}>
-              <div className="flex items-center gap-8">
-                <div className="radio-group" style={{ margin: 0 }}>
-                  <span
-                    className={`radio-opt${mode === 'ai' ? ' active' : ''}`}
-                    onClick={() => handleModeSwitch('ai')}
-                  >
-                    AI 自动回复
-                  </span>
-                  <span
-                    className={`radio-opt${mode === 'human' ? ' active' : ''}`}
-                    onClick={() => handleModeSwitch('human')}
-                  >
-                    人工回复
+              {notifSettings?.auto_reply_enabled ? (
+                <div className="flex items-center gap-8">
+                  <span className="tag-pill tag-ai">AI 自动回复中</span>
+                  <span className="text-xs flex-1" style={{ color: 'var(--text-tertiary)' }}>
+                    全局自动回复已开启，所有新消息由 AI 自动处理
                   </span>
                 </div>
-                <span className="text-xs flex-1">
-                  {mode === 'ai' ? 'AI 将根据知识库自动生成回复' : '手动输入消息并发送'}
-                </span>
-              </div>
+              ) : (
+                <div className="flex items-center gap-8">
+                  <div className="radio-group" style={{ margin: 0 }}>
+                    <span
+                      className={`radio-opt${mode === 'ai' ? ' active' : ''}`}
+                      onClick={() => handleModeSwitch('ai')}
+                    >
+                      AI 回复
+                    </span>
+                    <span
+                      className={`radio-opt${mode === 'human' ? ' active' : ''}`}
+                      onClick={() => handleModeSwitch('human')}
+                    >
+                      人工回复
+                    </span>
+                  </div>
+                  <span className="text-xs flex-1">
+                    {mode === 'ai' ? 'AI 生成回复，确认后发送' : '手动输入消息并发送'}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* AI Mode Input */}
-            {mode === 'ai' && (
+            {/* AI Mode Input (only when global auto-reply is OFF and conversation is in AI mode) */}
+            {!notifSettings?.auto_reply_enabled && mode === 'ai' && (
               <div style={{ padding: '8px 16px 12px', background: 'var(--bg-primary)', flexShrink: 0 }}>
                 <div className="field-label" style={{ marginBottom: 6 }}>AI 回复预览（发送前可编辑）：</div>
                 <div className="ai-preview">
@@ -506,8 +513,8 @@ export default function Conversations() {
               </div>
             )}
 
-            {/* Human Mode Input */}
-            {mode === 'human' && (
+            {/* Human Mode Input (only when global auto-reply is OFF) */}
+            {!notifSettings?.auto_reply_enabled && mode === 'human' && (
               <div style={{ padding: '8px 16px 12px', background: 'var(--bg-primary)', flexShrink: 0 }}>
                 {assist && (
                   <div className="ai-preview" style={{ marginBottom: 8 }}>
@@ -523,14 +530,15 @@ export default function Conversations() {
                     </div>
                   </div>
                 )}
-                <div className="flex gap-8 items-center">
-                  <input
-                    type="text"
+                <div className="flex gap-8" style={{ alignItems: 'flex-end' }}>
+                  <textarea
                     className="flex-1"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
                     placeholder="输入消息..."
+                    rows={3}
+                    style={{ resize: 'vertical', minHeight: 40, fontFamily: 'var(--font)', fontSize: 13, lineHeight: 1.5 }}
                   />
                   <button
                     className="btn-primary"

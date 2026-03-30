@@ -163,15 +163,6 @@ export default function Knowledge() {
           ))}
         </div>
 
-        {/* Add Button (dashed) */}
-        {!editing && entries.length > 0 && (
-          <button
-            className="btn-dashed"
-            onClick={() => setEditing({ question: '', answer: '', category: '' })}
-          >
-            + 添加新问答
-          </button>
-        )}
       </div>
     </div>
   );

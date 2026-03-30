@@ -6,6 +6,9 @@ class SettingsResponse(BaseModel):
     ig_username: str = ""
     ig_api_version: str = ""
     ai_model: str
+    ai_model_provider: str
+    custom_api_key: str
+    custom_base_url: str
     reply_delay_seconds: int
     translation_strategy: str
     notification_enabled: bool
@@ -18,6 +21,9 @@ class SettingsResponse(BaseModel):
 
 class SettingsUpdate(BaseModel):
     ai_model: str | None = None
+    ai_model_provider: str | None = None
+    custom_api_key: str | None = None
+    custom_base_url: str | None = None
     reply_delay_seconds: int | None = None
     translation_strategy: str | None = None
     notification_enabled: bool | None = None

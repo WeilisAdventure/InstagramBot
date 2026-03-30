@@ -21,6 +21,8 @@ class GraphApiClient(InstagramClient):
         self.token = page_access_token
         self.http = httpx.AsyncClient(timeout=30)
         self.connected = False
+        self.username = ""
+        self.ig_id = ""
 
     async def start_polling(self):
         """Graph API uses webhooks — no polling needed.
@@ -42,7 +44,9 @@ class GraphApiClient(InstagramClient):
                 self.connected = False
                 return
             data = resp.json()
-            logger.info(f"Graph API connected: {data.get('username', data.get('name', 'unknown'))} (ID: {data.get('id')})")
+            self.username = data.get("username", "") or data.get("name", "")
+            self.ig_id = data.get("id", "")
+            logger.info(f"Graph API connected: {self.username} (ID: {self.ig_id})")
             self.connected = True
         except Exception as e:
             logger.error(f"Graph API token verification failed: {e}")
@@ -104,7 +108,7 @@ class GraphApiClient(InstagramClient):
             resp = await self.http.get(
                 f"{GRAPH_API_BASE}/{user_id}",
                 params={
-                    "fields": "username,name",
+                    "fields": "username,name,profile_pic",
                     "access_token": self.token,
                 },
             )

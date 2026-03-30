@@ -86,13 +86,17 @@ class MessageHandler:
 
         # If username is empty (webhook mode), try to fetch it via Graph API
         username = msg.sender_username
-        if not username and hasattr(self.ig, 'get_user_profile'):
+        profile_pic = None
+        if hasattr(self.ig, 'get_user_profile'):
             try:
                 profile = await self.ig.get_user_profile(msg.sender_id)
                 if profile:
-                    username = profile.get("username", "") or profile.get("name", "")
+                    logger.info(f"Profile data for {msg.sender_id}: {profile}")
+                    if not username:
+                        username = profile.get("username", "") or profile.get("name", "")
+                    profile_pic = profile.get("profile_pic") or profile.get("profile_picture_url")
             except Exception as e:
-                logger.warning(f"Could not fetch username for {msg.sender_id}: {e}")
+                logger.warning(f"Could not fetch profile for {msg.sender_id}: {e}")
 
         # Phase 1: Save user message immediately so frontend can see it
         async with async_session() as db:
@@ -101,6 +105,8 @@ class MessageHandler:
             )
             if username and not conv.ig_username:
                 conv.ig_username = username
+            if profile_pic:
+                conv.ig_profile_pic = profile_pic
             user_msg = Message(
                 conversation_id=conv.id,
                 role="user",
@@ -112,17 +118,42 @@ class MessageHandler:
             conv_id = conv.id
             conv_mode = conv.mode
 
-        if not auto_reply_on:
-            logger.info("Auto reply disabled, message saved but no AI reply")
-            return
-
-        if conv_mode != "ai":
-            logger.info(f"Conversation {conv_id} is in human mode, skipping AI reply")
+        if auto_reply_on:
+            # Global ON → auto reply all conversations, ignore per-conversation mode
+            pass
+        else:
+            # Global OFF → per-conversation mode decides
+            if conv_mode != "ai":
+                logger.info(f"Conversation {conv_id} is in human mode, skipping AI reply")
+                return
+            # conv_mode == "ai" but global off → no auto reply, user triggers manually in UI
+            logger.info("Global auto-reply disabled, message saved only")
             return
 
         # Phase 2: Generate and send AI reply in a new session
+        # Switch provider if model changed to a different vendor
         current_model = await self._get_setting_value("ai_model", "claude-sonnet-4-20250514")
-        self.ai.model = current_model
+        model_provider = await self._get_setting_value("ai_model_provider", "")
+        from app.ai.factory import get_provider_for_model, create_provider_for_model
+        from app.config import settings as app_settings
+        current_provider = get_provider_for_model(current_model, model_provider)
+        ai_provider_type = get_provider_for_model(getattr(self.ai, 'model', ''))
+        if current_provider != ai_provider_type:
+            custom_key = await self._get_setting_value("custom_api_key", "")
+            custom_url = await self._get_setting_value("custom_base_url", "")
+            self.ai = create_provider_for_model(
+                model_id=current_model,
+                anthropic_key=app_settings.anthropic_api_key,
+                openai_key=app_settings.openai_api_key,
+                openai_base_url=app_settings.openai_base_url,
+                google_key=app_settings.google_api_key,
+                provider_override=model_provider,
+                custom_api_key=custom_key,
+                custom_base_url=custom_url,
+            )
+            logger.info(f"Switched AI provider to {current_provider} ({current_model})")
+        else:
+            self.ai.model = current_model
 
         async with async_session() as db:
             knowledge = await self._load_knowledge_entries(db)

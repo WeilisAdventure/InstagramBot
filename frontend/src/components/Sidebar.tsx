@@ -15,9 +15,9 @@ const sections = [
     { path: '/', label: '总览仪表盘', dotColor: '#185FA5' },
   ]},
   { group: '核心功能', items: [
+    { path: '/conversations', label: '私信对话', dotColor: '#22c55e' },
     { path: '/rules', label: '评论触发规则', dotColor: '#185FA5' },
     { path: '/simulate', label: '模拟测试', dotColor: '#534AB7' },
-    { path: '/conversations', label: '私信对话', dotColor: '#22c55e' },
   ]},
   { group: '配置', items: [
     { path: '/knowledge', label: '知识库', dotColor: '#d97706' },

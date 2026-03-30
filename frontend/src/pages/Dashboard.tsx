@@ -36,15 +36,8 @@ export default function Dashboard() {
             <div className="text-sm">自动处理评论触发、私信对话、翻译与 AI 回复</div>
           </div>
         </div>
-        {/* Flow Chips */}
-        <div className="flow-row">
-          <span className="fb fb-gray">用户评论</span><span className="flow-arrow">&rarr;</span>
-          <span className="fb fb-purple">关键词检测</span><span className="flow-arrow">&rarr;</span>
-          <span className="fb fb-blue">自动私信</span><span className="flow-arrow">&rarr;</span>
-          <span className="fb fb-green">AI 持续跟进</span>
-          <span className="flow-arrow">+</span>
-          <span className="fb fb-amber">人工介入</span>
-        </div>
+        {/* Flow Diagram */}
+        <FlowDiagram />
       </div>
 
       {/* Stats Grid */}
@@ -72,6 +65,99 @@ function StatCard({ value, label }: { value: string | number; label: string }) {
     <div className="stat-card">
       <div className="stat-number">{value}</div>
       <div className="stat-label">{label}</div>
+    </div>
+  );
+}
+
+function FlowDiagram() {
+  const nodeBase: React.CSSProperties = {
+    padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+    textAlign: 'center', whiteSpace: 'nowrap', lineHeight: 1.4,
+  };
+  const diamond: React.CSSProperties = {
+    ...nodeBase, transform: 'rotate(0deg)', border: '1.5px dashed var(--border-mid)',
+    background: 'var(--bg-primary)', color: 'var(--text-secondary)', borderRadius: 6,
+  };
+  const arrow: React.CSSProperties = {
+    fontSize: 14, color: 'var(--text-tertiary)', lineHeight: 1,
+  };
+  const label: React.CSSProperties = {
+    fontSize: 9, color: 'var(--text-tertiary)', fontWeight: 500,
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 24, marginTop: 4, overflowX: 'auto', paddingBottom: 4 }}>
+      {/* Left branch: DM */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 160 }}>
+        <div style={{ ...nodeBase, background: 'var(--bg-primary)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)' }}>
+          私信
+        </div>
+        <span style={arrow}>↓</span>
+        <div style={{ ...nodeBase, background: 'var(--blue-50)', border: '1px solid #B5D4F4', color: 'var(--blue-800)', fontSize: 10 }}>
+          保存到对话
+        </div>
+        <span style={arrow}>↓</span>
+        <div style={diamond}>全局自动回复？</div>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <span style={label}>开</span>
+            <span style={arrow}>↓</span>
+            <div style={{ ...nodeBase, background: 'var(--green-50)', border: '1px solid #C0DD97', color: 'var(--green-800)' }}>
+              AI 自动回复
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <span style={label}>关</span>
+            <span style={arrow}>↓</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ ...nodeBase, background: 'var(--green-50)', border: '1px solid #C0DD97', color: 'var(--green-800)', fontSize: 10 }}>
+                  AI 回复
+                </div>
+                <div style={{ ...nodeBase, background: 'var(--amber-50)', border: '1px solid #FAC775', color: 'var(--amber-800)', fontSize: 10 }}>
+                  人工回复
+                </div>
+              </div>
+              <span style={arrow}>↓</span>
+              <div style={{ ...nodeBase, background: 'var(--blue-50)', border: '1px solid #B5D4F4', color: 'var(--blue-800)', fontSize: 10 }}>
+                确认发送
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div style={{ width: 1, background: 'var(--border-soft)', alignSelf: 'stretch', margin: '8px 0' }} />
+
+      {/* Right branch: Comment */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 100 }}>
+        <div style={{ ...nodeBase, background: 'var(--bg-primary)', border: '1px solid var(--border-mid)', color: 'var(--text-primary)' }}>
+          评论
+        </div>
+        <span style={arrow}>↓</span>
+        <div style={diamond}>匹配规则？</div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <span style={label}>是</span>
+            <span style={arrow}>↓</span>
+            <div style={{ ...nodeBase, background: 'var(--purple-50)', border: '1px solid #AFA9EC', color: 'var(--purple-800)' }}>
+              公开回复
+            </div>
+            <span style={arrow}>↓</span>
+            <div style={{ ...nodeBase, background: 'var(--blue-50)', border: '1px solid #B5D4F4', color: 'var(--blue-800)' }}>
+              发送 DM
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 0 }}>
+            <span style={label}>否</span>
+            <span style={arrow}>↓</span>
+            <div style={{ ...nodeBase, background: 'var(--bg-primary)', border: '1px solid var(--border-mid)', color: 'var(--text-tertiary)', fontSize: 10 }}>
+              忽略
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

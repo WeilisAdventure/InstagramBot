@@ -18,6 +18,7 @@ class ConversationResponse(BaseModel):
     id: int
     ig_user_id: str
     ig_username: str
+    ig_profile_pic: str | None = None
     trigger_source: str
     trigger_rule_id: int | None
     mode: str
@@ -25,6 +26,8 @@ class ConversationResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_message: str | None = None
+    last_message_role: str | None = None
+    last_message_is_ai: bool | None = None
 
     model_config = {"from_attributes": True}
 
