@@ -186,10 +186,6 @@ export default function Settings() {
             </select>
           </div>
           <div className="card-row">
-            <span className="card-key">无法解答时</span>
-            <span className="card-value">转接人工客服</span>
-          </div>
-          <div className="card-row">
             <span className="card-key">回复延迟</span>
             <div className="flex items-center gap-8">
               <input
