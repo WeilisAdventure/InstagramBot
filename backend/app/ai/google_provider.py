@@ -49,14 +49,11 @@ class GoogleProvider(AIProvider):
                 contents.append({"role": role, "parts": [msg["content"]]})
         contents.append({"role": "user", "parts": [user_message]})
 
-        try:
-            response = await model.generate_content_async(
-                contents,
-                generation_config=genai.types.GenerationConfig(max_output_tokens=500),
-            )
-            return response.text or ""
-        except Exception as e:
-            return f"Sorry, I'm having trouble right now. Please try again shortly. (Error: {e})"
+        response = await model.generate_content_async(
+            contents,
+            generation_config=genai.types.GenerationConfig(max_output_tokens=500),
+        )
+        return response.text or ""
 
     async def translate_message(self, text: str) -> dict:
         import re

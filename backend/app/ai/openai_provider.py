@@ -41,15 +41,12 @@ class OpenAIProvider(AIProvider):
             messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
 
-        try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                max_tokens=500,
-                messages=messages,
-            )
-            return response.choices[0].message.content or ""
-        except openai.APIError as e:
-            return f"Sorry, I'm having trouble right now. Please try again shortly. (Error: {e})"
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            max_tokens=500,
+            messages=messages,
+        )
+        return response.choices[0].message.content or ""
 
     async def translate_message(self, text: str) -> dict:
         import re

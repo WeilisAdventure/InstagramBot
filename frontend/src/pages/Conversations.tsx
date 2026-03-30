@@ -412,9 +412,18 @@ export default function Conversations() {
             <div ref={messagesRef} className="scroll-y" style={{ gap: 10, display: 'flex', flexDirection: 'column' }}>
               {detail.messages.map((m) => {
                 if (m.role === 'system') {
+                  const isError = m.content.startsWith('[AI_ERROR]');
+                  const isCannotAnswer = m.content.startsWith('[CANNOT_ANSWER]');
+                  const displayText = isError
+                    ? `AI 回复失败：${m.content.replace('[AI_ERROR] ', '')}`
+                    : isCannotAnswer
+                    ? `AI 无法回答：${m.content.replace('[CANNOT_ANSWER] ', '')}`
+                    : m.content;
+                  const bgColor = isError ? '#fef2f2' : isCannotAnswer ? '#fffbeb' : undefined;
+                  const textColor = isError ? '#dc2626' : isCannotAnswer ? '#d97706' : undefined;
                   return (
                     <div key={m.id} style={{ textAlign: 'center' }}>
-                      <span className="badge badge-off">{m.content}</span>
+                      <span className="badge badge-off" style={bgColor ? { background: bgColor, color: textColor, border: 'none' } : undefined}>{displayText}</span>
                     </div>
                   );
                 }

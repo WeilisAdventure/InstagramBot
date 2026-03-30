@@ -39,16 +39,13 @@ class ClaudeProvider(AIProvider):
             messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
 
-        try:
-            response = await self.client.messages.create(
-                model=self.model,
-                max_tokens=500,
-                system=self.system_prompt,
-                messages=messages,
-            )
-            return response.content[0].text
-        except anthropic.APIError as e:
-            return f"Sorry, I'm having trouble right now. Please try again shortly. (Error: {e})"
+        response = await self.client.messages.create(
+            model=self.model,
+            max_tokens=500,
+            system=self.system_prompt,
+            messages=messages,
+        )
+        return response.content[0].text
 
     async def translate_message(self, text: str) -> dict:
         import re

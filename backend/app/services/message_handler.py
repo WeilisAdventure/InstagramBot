@@ -91,7 +91,6 @@ class MessageHandler:
             try:
                 profile = await self.ig.get_user_profile(msg.sender_id)
                 if profile:
-                    logger.info(f"Profile data for {msg.sender_id}: {profile}")
                     if not username:
                         username = profile.get("username", "") or profile.get("name", "")
                     profile_pic = profile.get("profile_pic") or profile.get("profile_picture_url")
@@ -163,7 +162,30 @@ class MessageHandler:
         try:
             reply_text = await self.ai.generate_reply(msg.text or "", history)
         except Exception as e:
-            logger.error(f"AI reply failed (is ANTHROPIC_API_KEY set?): {e}")
+            logger.error(f"AI reply failed: {e}")
+            async with async_session() as db:
+                db.add(Message(
+                    conversation_id=conv_id, role="system",
+                    content=f"[AI_ERROR] {str(e)[:200]}"
+                ))
+                conv = await db.get(Conversation, conv_id)
+                if conv:
+                    conv.updated_at = datetime.now(timezone.utc)
+                await db.commit()
+            return
+
+        # Check if AI cannot answer (knowledge insufficient)
+        if "__CANNOT_ANSWER__" in reply_text:
+            logger.info(f"AI cannot answer question from {msg.sender_username}: {msg.text}")
+            async with async_session() as db:
+                db.add(Message(
+                    conversation_id=conv_id, role="system",
+                    content=f"[CANNOT_ANSWER] {msg.text or ''}"
+                ))
+                conv = await db.get(Conversation, conv_id)
+                if conv:
+                    conv.updated_at = datetime.now(timezone.utc)
+                await db.commit()
             return
 
         # Apply translation strategy before sending
