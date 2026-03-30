@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.conversation import Conversation, Message
 from app.schemas.dashboard import DashboardStats
+from app.security import verify_token
 
-router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+router = APIRouter(prefix="/api/dashboard", tags=["dashboard"], dependencies=[Depends(verify_token)])
 
 
 @router.get("/stats", response_model=DashboardStats)

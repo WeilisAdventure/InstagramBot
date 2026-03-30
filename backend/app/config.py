@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     ai_provider: str = "claude"
     ai_model: str = "claude-sonnet-4-20250514"
 
+    # Auth
+    admin_password: str = "admin123"
+    auth_secret_key: str = "change-me-to-a-random-string"
+
     # App
     reply_delay_seconds: int = 3
     log_level: str = "INFO"

@@ -9,7 +9,7 @@ from app.ai.factory import create_ai_provider
 from app.instagram.factory import create_instagram_client
 from app.services.message_handler import MessageHandler
 from app.services.translator import TranslatorService
-from app.api import dashboard, rules, simulate, conversations, knowledge
+from app.api import auth, dashboard, rules, simulate, conversations, knowledge
 from app.api import settings as settings_api
 from app.webhook.router import router as webhook_router
 
@@ -78,7 +78,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount API routes
+# Mount auth (public)
+app.include_router(auth.router)
+
+# Mount API routes (protected)
 app.include_router(dashboard.router)
 app.include_router(rules.router)
 app.include_router(simulate.router)

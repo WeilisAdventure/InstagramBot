@@ -5,8 +5,9 @@ from app.database import get_db
 from app.models.rule import CommentTriggerRule
 from app.models.conversation import Conversation
 from app.schemas.rule import RuleCreate, RuleUpdate, RuleResponse
+from app.security import verify_token
 
-router = APIRouter(prefix="/api/rules", tags=["rules"])
+router = APIRouter(prefix="/api/rules", tags=["rules"], dependencies=[Depends(verify_token)])
 
 
 @router.get("", response_model=list[RuleResponse])

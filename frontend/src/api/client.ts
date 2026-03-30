@@ -1,16 +1,55 @@
 const BASE = '/api';
 
+function getToken(): string | null {
+  return localStorage.getItem('token');
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     ...options,
   });
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
 }
+
+// Auth
+export const login = async (password: string): Promise<string> => {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || '登录失败');
+  }
+  const data = await res.json();
+  localStorage.setItem('token', data.access_token);
+  return data.access_token;
+};
+
+export const logout = () => {
+  localStorage.removeItem('token');
+  window.location.href = '/login';
+};
+
+export const isLoggedIn = () => !!getToken();
 
 // Dashboard
 export const getDashboardStats = () => request<import('../types').DashboardStats>('/dashboard/stats');
@@ -37,7 +76,15 @@ export const deleteAllKnowledge = () =>
 export const uploadKnowledgeFile = async (file: File): Promise<import('../types').KnowledgeEntry[]> => {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${BASE}/knowledge/upload`, { method: 'POST', body: form });
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${BASE}/knowledge/upload`, { method: 'POST', body: form, headers });
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || `Upload failed: ${res.status}`);

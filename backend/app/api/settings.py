@@ -4,8 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.settings import SystemSettings
 from app.schemas.settings import SettingsResponse, SettingsUpdate
+from app.security import verify_token
 
-router = APIRouter(prefix="/api/settings", tags=["settings"])
+router = APIRouter(prefix="/api/settings", tags=["settings"], dependencies=[Depends(verify_token)])
 
 DEFAULTS = {
     "ig_connection_status": "disconnected",

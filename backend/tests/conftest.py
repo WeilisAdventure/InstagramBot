@@ -5,6 +5,7 @@ from httpx import AsyncClient, ASGITransport
 from app.database import Base, get_db
 from app.main import app
 from app.ai.base import AIProvider
+from app.security import verify_token
 
 
 class MockAIProvider(AIProvider):
@@ -37,6 +38,10 @@ async def client(db_session):
     async def override_get_db():
         yield db_session
 
+    async def override_verify_token():
+        return "admin"
+
+    app.dependency_overrides[verify_token] = override_verify_token
     app.dependency_overrides[get_db] = override_get_db
     app.state.ai_provider = MockAIProvider()
     app.state.translator = __import__('app.services.translator', fromlist=['TranslatorService']).TranslatorService(app.state.ai_provider)

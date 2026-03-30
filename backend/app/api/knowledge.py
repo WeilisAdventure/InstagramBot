@@ -11,9 +11,10 @@ from app.database import get_db
 from app.models.knowledge import KnowledgeEntry
 from app.schemas.knowledge import KnowledgeCreate, KnowledgeUpdate, KnowledgeResponse
 from app.config import settings
+from app.security import verify_token
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+router = APIRouter(prefix="/api/knowledge", tags=["knowledge"], dependencies=[Depends(verify_token)])
 
 
 @router.get("", response_model=list[KnowledgeResponse])

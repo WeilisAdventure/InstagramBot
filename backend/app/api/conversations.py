@@ -8,8 +8,9 @@ from app.schemas.conversation import (
     ConversationResponse, ConversationDetail, MessageResponse,
     SendMessageRequest, AssistRequest, AssistResponse, UpdateModeRequest,
 )
+from app.security import verify_token
 
-router = APIRouter(prefix="/api/conversations", tags=["conversations"])
+router = APIRouter(prefix="/api/conversations", tags=["conversations"], dependencies=[Depends(verify_token)])
 
 
 @router.get("", response_model=list[ConversationResponse])

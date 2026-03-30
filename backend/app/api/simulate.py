@@ -4,8 +4,9 @@ from app.database import get_db
 from app.models.conversation import Conversation, Message
 from app.services.comment_trigger import find_matching_rule, render_template
 from app.schemas.settings import SimulateRequest, SimulateResponse
+from app.security import verify_token
 
-router = APIRouter(prefix="/api/simulate", tags=["simulate"])
+router = APIRouter(prefix="/api/simulate", tags=["simulate"], dependencies=[Depends(verify_token)])
 
 
 @router.post("", response_model=SimulateResponse)
