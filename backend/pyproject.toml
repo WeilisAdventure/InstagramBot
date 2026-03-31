@@ -13,6 +13,7 @@ dependencies = [
     "instagrapi>=2.1",
     "python-dotenv>=1.1",
     "PyJWT>=2.8",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
