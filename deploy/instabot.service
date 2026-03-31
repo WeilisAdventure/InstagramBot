@@ -1,0 +1,23 @@
+[Unit]
+Description=InstaBot FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=instabot
+Group=instabot
+WorkingDirectory=/opt/instabot/backend
+ExecStart=/opt/instabot/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+# Environment
+EnvironmentFile=/opt/instabot/backend/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=instabot
+
+[Install]
+WantedBy=multi-user.target
