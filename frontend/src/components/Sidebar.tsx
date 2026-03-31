@@ -38,8 +38,6 @@ export default function Sidebar() {
     else { const n = !t2; setT2(n); await updateSettings({ comment_trigger_enabled: n }); }
   };
 
-  const allOn = t1 && t2;
-
   return (
     <aside className="sidebar" style={{ height: '100vh', position: 'sticky', top: 0 }}>
       {/* Brand header */}
