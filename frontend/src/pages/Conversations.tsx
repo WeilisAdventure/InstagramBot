@@ -501,7 +501,7 @@ export default function Conversations() {
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && loadAiReply()}
-                    placeholder="提示词（可选）：如"用中文回复"、"语气友善一些"..."
+                    placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」...'
                     style={{ fontSize: 12, padding: '5px 8px' }}
                   />
                   <button className="btn" onClick={loadAiReply} disabled={aiReplyLoading} style={{ fontSize: 11, padding: '5px 10px', whiteSpace: 'nowrap' }}>
