@@ -202,14 +202,17 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
             request.app.state.ai_provider = ai
         else:
             ai.model = current_model
-    ai.reload_knowledge(knowledge)
-
     # Get last user message
     last_user_msg = ""
     for m in reversed(messages):
         if m.role == "user":
             last_user_msg = m.content
             break
+
+    # Filter knowledge to most relevant entries to stay under token limits
+    from app.knowledge.relevance import filter_relevant
+    filtered = filter_relevant(knowledge, last_user_msg)
+    ai.reload_knowledge(filtered)
 
     reply = await ai.generate_reply(last_user_msg, history, extra_prompt=extra_prompt or None)
     return {"reply": reply}

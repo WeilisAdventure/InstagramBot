@@ -156,8 +156,12 @@ class MessageHandler:
 
         async with async_session() as db:
             knowledge = await self._load_knowledge_entries(db)
-            self.ai.reload_knowledge(knowledge)
             history = await self._get_conversation_history(db, conv_id)
+
+        # Filter knowledge to most relevant entries to stay under token limits
+        from app.knowledge.relevance import filter_relevant
+        filtered = filter_relevant(knowledge, msg.text or "")
+        self.ai.reload_knowledge(filtered)
 
         try:
             reply_text = await self.ai.generate_reply(msg.text or "", history)
