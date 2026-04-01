@@ -76,7 +76,6 @@ export default function Conversations() {
   const [assist, setAssist] = useState<AssistResult | null>(null);
   const [sending, setSending] = useState(false);
   const [mode, setMode] = useState<'ai' | 'human'>('ai');
-  const [translateOn, setTranslateOn] = useState(false);
   const [translations, setTranslations] = useState<Map<number, string>>(new Map());
   const [aiReply, setAiReply] = useState('');
   const [aiReplyLoading, setAiReplyLoading] = useState(false);
@@ -197,32 +196,28 @@ export default function Conversations() {
   }, [detail?.messages?.length, selectedId]);
 
 
-  // Fetch translations
-  useEffect(() => {
-    if (!translateOn || !detail) return;
-    const userMessages = detail.messages.filter((m) => m.role === 'user');
-    userMessages.forEach((m) => {
-      if (!translations.has(m.id)) {
-        translateMessage(detail.id, m.content)
-          .then((res) => {
-            setTranslations((prev) => {
-              const next = new Map(prev);
-              next.set(m.id, res.translated);
-              return next;
-            });
-          })
-          .catch(() => {});
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [translateOn, detail?.messages]);
+  const handleTranslateMsg = (msgId: number, content: string) => {
+    if (translations.has(msgId)) {
+      // Toggle off
+      setTranslations((prev) => { const next = new Map(prev); next.delete(msgId); return next; });
+      return;
+    }
+    if (!detail) return;
+    setTranslations((prev) => new Map(prev).set(msgId, '__loading__'));
+    translateMessage(detail.id, content)
+      .then((res) => {
+        setTranslations((prev) => new Map(prev).set(msgId, res.translated));
+      })
+      .catch(() => {
+        setTranslations((prev) => { const next = new Map(prev); next.delete(msgId); return next; });
+      });
+  };
 
   const selectConversation = (id: number) => {
     setSelectedId(id);
     setDetail(null);
     setInput('');
     setAssist(null);
-    setTranslateOn(false);
     setTranslations(new Map());
     setAiReply('');
     setAiPrompt('');
@@ -382,29 +377,6 @@ export default function Conversations() {
               {detail.trigger_source === 'comment_rule' && (
                 <span className="tag-pill tag-ai" style={{ fontSize: 10 }}>由评论触发</span>
               )}
-              <button
-                className="btn"
-                onClick={() => setTranslateOn(!translateOn)}
-                style={{
-                  fontSize: 11,
-                  padding: '4px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  borderColor: translateOn ? 'var(--green)' : 'var(--border-mid)',
-                }}
-              >
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: translateOn ? 'var(--green)' : 'var(--text-tertiary)',
-                    flexShrink: 0,
-                  }}
-                />
-                {translateOn ? '翻译开' : '翻译关'}
-              </button>
             </div>
 
             {/* Toast */}
@@ -460,10 +432,24 @@ export default function Conversations() {
                       }
                       <span style={{ marginLeft: 6 }}>{formatTime(m.created_at)}</span>
                     </div>
-                    {isUser && translateOn && (
-                      <div className="translate-hint">
-                        译文：<em>{translations.get(m.id) || '翻译中...'}</em>
-                      </div>
+                    {isUser && (
+                      <>
+                        <button
+                          onClick={() => handleTranslateMsg(m.id, m.content)}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            fontSize: 11, color: translations.has(m.id) ? 'var(--blue)' : 'var(--text-tertiary)',
+                            padding: '2px 0', marginTop: 2,
+                          }}
+                        >
+                          {translations.get(m.id) === '__loading__' ? '翻译中...' : translations.has(m.id) ? '隐藏翻译' : '翻译'}
+                        </button>
+                        {translations.has(m.id) && translations.get(m.id) !== '__loading__' && (
+                          <div className="translate-hint">
+                            译文：<em>{translations.get(m.id)}</em>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );
