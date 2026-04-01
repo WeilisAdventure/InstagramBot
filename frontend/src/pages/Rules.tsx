@@ -29,7 +29,10 @@ export default function Rules() {
 
   const addKeyword = () => {
     if (!editing || !keywordInput.trim()) return;
-    setEditing({ ...editing, keywords: [...editing.keywords, keywordInput.trim()] });
+    // Support comma-separated input
+    const newKw = keywordInput.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+    if (newKw.length === 0) return;
+    setEditing({ ...editing, keywords: [...editing.keywords, ...newKw] });
     setKeywordInput('');
   };
 
@@ -80,7 +83,7 @@ export default function Rules() {
                 value={keywordInput}
                 onChange={(e) => setKeywordInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                placeholder="输入关键词按回车添加"
+                placeholder="输入关键词按回车添加，支持逗号分隔批量添加"
               />
             </div>
 
