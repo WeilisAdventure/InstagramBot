@@ -528,7 +528,7 @@ export default function Conversations() {
                     <textarea
                       value={aiReply}
                       onChange={(e) => setAiReply(e.target.value)}
-                      style={{ width: '100%', border: 'none', background: 'transparent', color: 'var(--blue-800)', fontSize: 12, resize: 'vertical', minHeight: 40, outline: 'none', fontFamily: 'var(--font)', lineHeight: 1.5 }}
+                      style={{ width: '100%', border: 'none', background: 'transparent', color: 'var(--blue-800)', fontSize: 12, resize: 'vertical', minHeight: 120, outline: 'none', fontFamily: 'var(--font)', lineHeight: 1.5 }}
                     />
                   )}
                 </div>
