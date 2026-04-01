@@ -33,6 +33,10 @@ function playNotificationSound() {
 function showDesktopNotification(title: string, body: string) {
   if (Notification.permission === 'granted') {
     new Notification(title, { body, icon: '/favicon.ico' });
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then((p) => {
+      if (p === 'granted') new Notification(title, { body, icon: '/favicon.ico' });
+    });
   }
 }
 
@@ -86,6 +90,13 @@ export default function Conversations() {
   const originalTitle = useRef(document.title);
   const [unreadCount, setUnreadCount] = useState(0);
 
+
+  // Request notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Load settings (frequent poll so global toggle changes reflect quickly)
   useEffect(() => {
@@ -145,7 +156,7 @@ export default function Conversations() {
                   c.last_message || ''
                 );
               }
-              if (notifSettings.notification_title_flash && document.hidden) {
+              if (notifSettings.notification_title_flash) {
                 setUnreadCount(prev => prev + 1);
               }
               break;
