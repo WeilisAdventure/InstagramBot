@@ -9,7 +9,7 @@ from app.security import verify_token
 
 
 class MockAIProvider(AIProvider):
-    async def generate_reply(self, user_message, conversation_history=None):
+    async def generate_reply(self, user_message, conversation_history=None, extra_prompt=None):
         return f"Mock reply to: {user_message}"
 
     async def translate_and_improve(self, text):

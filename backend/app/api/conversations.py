@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
@@ -146,9 +147,13 @@ async def translate_message(conv_id: int, data: dict, request: Request):
     return result
 
 
+class GenerateReplyRequest(BaseModel):
+    prompt: str = ""
+
 @router.post("/{conv_id}/generate-reply")
-async def generate_reply(conv_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Generate an AI reply preview without sending it."""
+    extra_prompt = data.prompt
     conv = await db.get(Conversation, conv_id)
     if not conv:
         raise HTTPException(404, "Conversation not found")
@@ -206,5 +211,5 @@ async def generate_reply(conv_id: int, request: Request, db: AsyncSession = Depe
             last_user_msg = m.content
             break
 
-    reply = await ai.generate_reply(last_user_msg, history)
+    reply = await ai.generate_reply(last_user_msg, history, extra_prompt=extra_prompt or None)
     return {"reply": reply}

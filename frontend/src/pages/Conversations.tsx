@@ -76,6 +76,7 @@ export default function Conversations() {
   const [translations, setTranslations] = useState<Map<number, string>>(new Map());
   const [aiReply, setAiReply] = useState('');
   const [aiReplyLoading, setAiReplyLoading] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
   const [toast, setToast] = useState<{ text: string; type: 'info' | 'warn' | 'error' } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -213,6 +214,7 @@ export default function Conversations() {
     setTranslateOn(false);
     setTranslations(new Map());
     setAiReply('');
+    setAiPrompt('');
     setToast(null);
   };
 
@@ -220,7 +222,7 @@ export default function Conversations() {
     if (!detail) return;
     setAiReplyLoading(true);
     try {
-      const res = await generateAIReply(detail.id);
+      const res = await generateAIReply(detail.id, aiPrompt || undefined);
       setAiReply(res.reply);
     } catch {
       setAiReply('');
@@ -493,6 +495,19 @@ export default function Conversations() {
             {/* AI Mode Input (only when global auto-reply is OFF and conversation is in AI mode) */}
             {!notifSettings?.auto_reply_enabled && mode === 'ai' && (
               <div style={{ padding: '8px 16px 12px', background: 'var(--bg-primary)', flexShrink: 0 }}>
+                <div className="flex gap-8 items-center" style={{ marginBottom: 6 }}>
+                  <input
+                    className="flex-1"
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && loadAiReply()}
+                    placeholder="提示词（可选）：如"用中文回复"、"语气友善一些"..."
+                    style={{ fontSize: 12, padding: '5px 8px' }}
+                  />
+                  <button className="btn" onClick={loadAiReply} disabled={aiReplyLoading} style={{ fontSize: 11, padding: '5px 10px', whiteSpace: 'nowrap' }}>
+                    {aiReply ? '重新生成' : '生成回复'}
+                  </button>
+                </div>
                 <div className="field-label" style={{ marginBottom: 6 }}>AI 回复预览（发送前可编辑）：</div>
                 <div className="ai-preview">
                   <div className="ai-preview-label">AI 生成内容</div>
@@ -507,9 +522,6 @@ export default function Conversations() {
                   )}
                 </div>
                 <div className="flex gap-8 mt-8">
-                  <button className="btn" onClick={loadAiReply} disabled={aiReplyLoading}>
-                    重新生成
-                  </button>
                   <button
                     className="btn-primary"
                     onClick={handleSendAiReply}

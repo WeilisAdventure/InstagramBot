@@ -7,6 +7,7 @@ class AIProvider(ABC):
         self,
         user_message: str,
         conversation_history: list[dict] | None = None,
+        extra_prompt: str | None = None,
     ) -> str:
         """Generate a reply given the user's message and optional conversation history."""
         ...

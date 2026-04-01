@@ -33,16 +33,21 @@ class ClaudeProvider(AIProvider):
         self,
         user_message: str,
         conversation_history: list[dict] | None = None,
+        extra_prompt: str | None = None,
     ) -> str:
         messages = []
         if conversation_history:
             messages.extend(conversation_history)
         messages.append({"role": "user", "content": user_message})
 
+        system = self.system_prompt
+        if extra_prompt:
+            system += f"\n\n# Additional Instructions\n{extra_prompt}"
+
         response = await self.client.messages.create(
             model=self.model,
             max_tokens=500,
-            system=self.system_prompt,
+            system=system,
             messages=messages,
         )
         return response.content[0].text

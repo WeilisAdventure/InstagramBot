@@ -39,8 +39,14 @@ class GoogleProvider(AIProvider):
         self,
         user_message: str,
         conversation_history: list[dict] | None = None,
+        extra_prompt: str | None = None,
     ) -> str:
+        if extra_prompt:
+            orig = self.system_prompt
+            self.system_prompt += f"\n\n# Additional Instructions\n{extra_prompt}"
         model = self._get_model()
+        if extra_prompt:
+            self.system_prompt = orig
         # Convert history to Gemini format
         contents = []
         if conversation_history:
