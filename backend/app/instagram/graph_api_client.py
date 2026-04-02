@@ -32,19 +32,35 @@ class GraphApiClient(InstagramClient):
             return
 
         try:
-            # Use account_id to fetch the Instagram account info (not /me which returns Page info)
+            data = None
+            # Strategy 1: Query IG account via Facebook Graph API
             resp = await self.http.get(
-                f"{GRAPH_API_BASE}/{self.account_id}",
+                f"https://graph.facebook.com/v21.0/{self.account_id}",
                 params={
                     "fields": "id,name,username,profile_picture_url",
                     "access_token": self.token,
                 },
             )
-            if resp.status_code != 200:
+            if resp.status_code == 200:
+                data = resp.json()
+            else:
+                logger.warning(f"Facebook Graph lookup failed ({resp.status_code}), trying /me fallback")
+                # Strategy 2: Fall back to /me on Instagram Graph API
+                resp = await self.http.get(
+                    f"{GRAPH_API_BASE}/me",
+                    params={
+                        "fields": "id,name,username",
+                        "access_token": self.token,
+                    },
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+
+            if not data:
                 logger.error(f"Graph API token verification failed ({resp.status_code}): {resp.text}")
                 self.connected = False
                 return
-            data = resp.json()
+
             self.username = data.get("username", "") or data.get("name", "")
             self.ig_id = data.get("id", "")
             logger.info(f"Graph API connected: @{self.username} (ID: {self.ig_id})")
