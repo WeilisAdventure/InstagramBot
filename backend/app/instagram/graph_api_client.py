@@ -32,20 +32,31 @@ class GraphApiClient(InstagramClient):
             return
 
         try:
-            data = None
-            # Strategy 1: Query IG account via Facebook Graph API
+            username = ""
+            ig_id = ""
+
+            # Strategy 1: Get Page info via Facebook Graph API, then its linked IG account
             resp = await self.http.get(
-                f"https://graph.facebook.com/v21.0/{self.account_id}",
+                f"https://graph.facebook.com/v21.0/me",
                 params={
-                    "fields": "id,name,username,profile_picture_url",
+                    "fields": "id,name,instagram_business_account{id,username,name,profile_picture_url}",
                     "access_token": self.token,
                 },
             )
             if resp.status_code == 200:
-                data = resp.json()
+                page_data = resp.json()
+                ig_account = page_data.get("instagram_business_account", {})
+                if ig_account:
+                    username = ig_account.get("username", "") or ig_account.get("name", "")
+                    ig_id = ig_account.get("id", "")
+                    logger.info(f"Found IG account via Page: @{username} (ID: {ig_id})")
+                else:
+                    logger.warning(f"Page '{page_data.get('name', '')}' has no linked IG business account")
             else:
-                logger.warning(f"Facebook Graph lookup failed ({resp.status_code}), trying /me fallback")
-                # Strategy 2: Fall back to /me on Instagram Graph API
+                logger.warning(f"Facebook Page lookup failed ({resp.status_code})")
+
+            # Strategy 2: Fall back to /me on Instagram Graph API
+            if not username:
                 resp = await self.http.get(
                     f"{GRAPH_API_BASE}/me",
                     params={
@@ -55,14 +66,16 @@ class GraphApiClient(InstagramClient):
                 )
                 if resp.status_code == 200:
                     data = resp.json()
+                    username = data.get("username", "") or data.get("name", "")
+                    ig_id = data.get("id", "")
 
-            if not data:
-                logger.error(f"Graph API token verification failed ({resp.status_code}): {resp.text}")
+            if not username:
+                logger.error(f"Could not determine Instagram account info")
                 self.connected = False
                 return
 
-            self.username = data.get("username", "") or data.get("name", "")
-            self.ig_id = data.get("id", "")
+            self.username = username
+            self.ig_id = ig_id
             logger.info(f"Graph API connected: @{self.username} (ID: {self.ig_id})")
             self.connected = True
         except Exception as e:
