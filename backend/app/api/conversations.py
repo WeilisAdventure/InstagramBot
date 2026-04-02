@@ -15,11 +15,28 @@ router = APIRouter(prefix="/api/conversations", tags=["conversations"], dependen
 
 
 @router.get("", response_model=list[ConversationResponse])
-async def list_conversations(db: AsyncSession = Depends(get_db)):
+async def list_conversations(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Conversation).order_by(Conversation.updated_at.desc())
     )
     convs = result.scalars().all()
+
+    # Lazy-load missing profile pics / usernames via IG API
+    ig_client = getattr(request.app.state, "ig_client", None)
+    if ig_client and hasattr(ig_client, "get_user_profile"):
+        for conv in convs:
+            if conv.ig_user_id and (not conv.ig_profile_pic or not conv.ig_username):
+                try:
+                    profile = await ig_client.get_user_profile(conv.ig_user_id)
+                    if profile:
+                        if not conv.ig_username and profile.get("username"):
+                            conv.ig_username = profile["username"]
+                        if not conv.ig_profile_pic and profile.get("profile_pic"):
+                            conv.ig_profile_pic = profile["profile_pic"]
+                except Exception:
+                    pass
+        await db.commit()
+
     response = []
     for conv in convs:
         # Get last message
