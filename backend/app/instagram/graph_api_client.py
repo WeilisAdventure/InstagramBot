@@ -32,10 +32,11 @@ class GraphApiClient(InstagramClient):
             return
 
         try:
+            # Use account_id to fetch the Instagram account info (not /me which returns Page info)
             resp = await self.http.get(
-                f"{GRAPH_API_BASE}/me",
+                f"{GRAPH_API_BASE}/{self.account_id}",
                 params={
-                    "fields": "id,name,username",
+                    "fields": "id,name,username,profile_picture_url",
                     "access_token": self.token,
                 },
             )
@@ -46,7 +47,7 @@ class GraphApiClient(InstagramClient):
             data = resp.json()
             self.username = data.get("username", "") or data.get("name", "")
             self.ig_id = data.get("id", "")
-            logger.info(f"Graph API connected: {self.username} (ID: {self.ig_id})")
+            logger.info(f"Graph API connected: @{self.username} (ID: {self.ig_id})")
             self.connected = True
         except Exception as e:
             logger.error(f"Graph API token verification failed: {e}")
@@ -103,17 +104,31 @@ class GraphApiClient(InstagramClient):
             return False
 
     async def get_user_profile(self, user_id: str) -> dict | None:
-        """Fetch user profile info (for getting username from webhook sender_id)."""
-        try:
-            resp = await self.http.get(
-                f"{GRAPH_API_BASE}/{user_id}",
-                params={
-                    "fields": "username,name,profile_pic",
-                    "access_token": self.token,
-                },
-            )
-            resp.raise_for_status()
-            return resp.json()
-        except Exception as e:
-            logger.error(f"Get user profile error: {e}")
-            return None
+        """Fetch user profile info (for getting username from webhook sender_id).
+
+        Note: For Instagram-scoped user IDs (IGSID) from messaging webhooks,
+        only 'name' and 'profile_pic' fields are available (not 'username').
+        We try username first, then fall back to name-only fields.
+        """
+        # Try with username field first (works for some account types)
+        for fields in ["username,name,profile_picture_url", "name,profile_pic"]:
+            try:
+                resp = await self.http.get(
+                    f"{GRAPH_API_BASE}/{user_id}",
+                    params={
+                        "fields": fields,
+                        "access_token": self.token,
+                    },
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    # Normalize field names for the caller
+                    return {
+                        "username": data.get("username", "") or data.get("name", ""),
+                        "name": data.get("name", ""),
+                        "profile_pic": data.get("profile_picture_url", "") or data.get("profile_pic", ""),
+                    }
+            except Exception:
+                continue
+        logger.warning(f"Could not fetch profile for user {user_id}")
+        return None
