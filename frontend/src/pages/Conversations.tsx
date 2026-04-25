@@ -88,6 +88,7 @@ export default function Conversations() {
   const titleFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const originalTitle = useRef(document.title);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [brokenImgs, setBrokenImgs] = useState<Set<number>>(new Set());
 
 
   // Request notification permission on mount
@@ -321,8 +322,13 @@ export default function Conversations() {
                 background: c.id === selectedId ? 'var(--bg-secondary)' : undefined,
               }}
             >
-              {c.ig_profile_pic ? (
-                <img src={c.ig_profile_pic} className="avatar avatar-md" style={{ objectFit: 'cover' }} />
+              {c.ig_profile_pic && !brokenImgs.has(c.id) ? (
+                <img
+                  src={c.ig_profile_pic}
+                  className="avatar avatar-md"
+                  style={{ objectFit: 'cover' }}
+                  onError={() => setBrokenImgs(prev => new Set(prev).add(c.id))}
+                />
               ) : (
                 <div className={`avatar avatar-md ${avatarColors[i % avatarColors.length]}`}>
                   {getInitials(c.ig_username || c.ig_user_id)}
@@ -364,8 +370,13 @@ export default function Conversations() {
           <>
             {/* Chat Header */}
             <div className="panel-header" style={{ background: 'var(--bg-primary)', gap: 10 }}>
-              {detail.ig_profile_pic ? (
-                <img src={detail.ig_profile_pic} className="avatar avatar-sm" style={{ objectFit: 'cover' }} />
+              {detail.ig_profile_pic && !brokenImgs.has(detail.id) ? (
+                <img
+                  src={detail.ig_profile_pic}
+                  className="avatar avatar-sm"
+                  style={{ objectFit: 'cover' }}
+                  onError={() => setBrokenImgs(prev => new Set(prev).add(detail.id))}
+                />
               ) : (
                 <div className={`avatar avatar-sm ${avatarColors[detail.id % avatarColors.length]}`}>
                   {initials}
