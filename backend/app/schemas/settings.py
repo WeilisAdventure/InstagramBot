@@ -17,6 +17,8 @@ class SettingsResponse(BaseModel):
     notification_title_flash: bool
     auto_reply_enabled: bool
     comment_trigger_enabled: bool
+    welcome_message_enabled: bool
+    welcome_message_text: str
 
 
 class SettingsUpdate(BaseModel):
@@ -32,6 +34,8 @@ class SettingsUpdate(BaseModel):
     notification_title_flash: bool | None = None
     auto_reply_enabled: bool | None = None
     comment_trigger_enabled: bool | None = None
+    welcome_message_enabled: bool | None = None
+    welcome_message_text: str | None = None
 
 
 class SimulateRequest(BaseModel):

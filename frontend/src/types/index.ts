@@ -83,6 +83,8 @@ export interface Settings {
   notification_title_flash: boolean;
   auto_reply_enabled: boolean;
   comment_trigger_enabled: boolean;
+  welcome_message_enabled: boolean;
+  welcome_message_text: string;
 }
 
 export interface SimulateResult {

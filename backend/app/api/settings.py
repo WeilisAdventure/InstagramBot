@@ -22,6 +22,8 @@ DEFAULTS = {
     "notification_title_flash": "true",
     "auto_reply_enabled": "true",
     "comment_trigger_enabled": "true",
+    "welcome_message_enabled": "false",
+    "welcome_message_text": "",
 }
 
 
@@ -73,6 +75,8 @@ async def get_settings(request: Request = None, db: AsyncSession = Depends(get_d
         notification_title_flash=(await _get_setting(db, "notification_title_flash")).lower() in ("true", "1"),
         auto_reply_enabled=(await _get_setting(db, "auto_reply_enabled")).lower() in ("true", "1"),
         comment_trigger_enabled=(await _get_setting(db, "comment_trigger_enabled")).lower() in ("true", "1"),
+        welcome_message_enabled=(await _get_setting(db, "welcome_message_enabled")).lower() in ("true", "1"),
+        welcome_message_text=await _get_setting(db, "welcome_message_text"),
     )
 
 

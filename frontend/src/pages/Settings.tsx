@@ -201,6 +201,44 @@ export default function Settings() {
 
         <hr className="divider" />
 
+        {/* Welcome Message */}
+        <div className="uppercase-label mb-8">欢迎语</div>
+        <div className="card-surface mb-16">
+          <div className="card-row">
+            <span className="card-key">新用户自动欢迎</span>
+            <button
+              className={`toggle${settings.welcome_message_enabled ? '' : ' off'}`}
+              onClick={() => update({ welcome_message_enabled: !settings.welcome_message_enabled })}
+            />
+          </div>
+          {settings.welcome_message_enabled && (
+            <div className="card-row" style={{ alignItems: 'flex-start', paddingTop: 8 }}>
+              <span className="card-key" style={{ paddingTop: 4 }}>欢迎语内容</span>
+              <textarea
+                style={{
+                  flex: 1,
+                  fontSize: 12,
+                  background: 'var(--bg-primary)',
+                  border: '0.5px solid var(--border-soft)',
+                  borderRadius: 8,
+                  padding: '6px 8px',
+                  resize: 'vertical',
+                  minHeight: 80,
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font)',
+                  lineHeight: 1.5,
+                  outline: 'none',
+                }}
+                placeholder="如：您好！感谢您联系 Fleet Now Delivery，请问有什么可以帮到您？"
+                value={settings.welcome_message_text}
+                onChange={(e) => update({ welcome_message_text: e.target.value })}
+              />
+            </div>
+          )}
+        </div>
+
+        <hr className="divider" />
+
         {/* Notifications */}
         <div className="uppercase-label mb-8">通知</div>
         <div className="card-surface mb-16">

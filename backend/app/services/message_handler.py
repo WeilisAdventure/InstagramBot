@@ -43,7 +43,8 @@ class MessageHandler:
         self, db: AsyncSession, sender_id: str, username: str,
         trigger_source: str = "direct_dm", rule_id: int | None = None,
         mode: str = "ai",
-    ) -> Conversation:
+    ) -> tuple[Conversation, bool]:
+        """Returns (conversation, is_new)."""
         result = await db.execute(
             select(Conversation)
             .where(Conversation.ig_user_id == sender_id, Conversation.is_resolved == False)
@@ -51,7 +52,7 @@ class MessageHandler:
         )
         conv = result.scalar_one_or_none()
         if conv:
-            return conv
+            return conv, False
         conv = Conversation(
             ig_user_id=sender_id,
             ig_username=username,
@@ -61,7 +62,7 @@ class MessageHandler:
         )
         db.add(conv)
         await db.flush()
-        return conv
+        return conv, True
 
     async def _load_knowledge_entries(self, db: AsyncSession) -> list[dict]:
         result = await db.execute(
@@ -99,7 +100,7 @@ class MessageHandler:
 
         # Phase 1: Save user message immediately so frontend can see it
         async with async_session() as db:
-            conv = await self._get_or_create_conversation(
+            conv, is_new = await self._get_or_create_conversation(
                 db, msg.sender_id, username
             )
             if username and not conv.ig_username:
@@ -116,6 +117,29 @@ class MessageHandler:
             await db.commit()
             conv_id = conv.id
             conv_mode = conv.mode
+
+        # Phase 1.5: Send welcome message to new users
+        if is_new:
+            welcome_enabled = await self._is_enabled("welcome_message_enabled")
+            if welcome_enabled:
+                welcome_text = await self._get_setting_value("welcome_message_text", "")
+                if welcome_text.strip():
+                    success = await self.ig.send_dm(msg.sender_id, welcome_text)
+                    async with async_session() as db:
+                        db.add(Message(
+                            conversation_id=conv_id,
+                            role="assistant",
+                            content=welcome_text,
+                            is_ai_generated=False,
+                        ))
+                        conv = await db.get(Conversation, conv_id)
+                        if conv:
+                            conv.updated_at = datetime.now(timezone.utc)
+                        await db.commit()
+                    if success:
+                        logger.info(f"Sent welcome message to new user {msg.sender_id}")
+                    else:
+                        logger.warning(f"Failed to send welcome message to {msg.sender_id}")
 
         if auto_reply_on:
             # Global ON → auto reply all conversations, ignore per-conversation mode
@@ -259,7 +283,7 @@ class MessageHandler:
 
             # Create or update conversation with trigger info
             mode = rule.follow_up_mode  # "ai" or "human"
-            conv = await self._get_or_create_conversation(
+            conv, _ = await self._get_or_create_conversation(
                 db, comment.user_id, comment.username,
                 trigger_source="comment_rule",
                 rule_id=rule.id,
