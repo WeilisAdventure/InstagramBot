@@ -468,40 +468,35 @@ export default function Conversations() {
               <div ref={bottomRef} />
             </div>
 
-            {/* Mode Switch */}
+            {/* Mode Switch — always available; per-conv mode overrides global */}
             <div style={{ padding: '8px 16px', borderTop: '0.5px solid var(--border-soft)', background: 'var(--bg-primary)', flexShrink: 0 }}>
-              {notifSettings?.auto_reply_enabled ? (
-                <div className="flex items-center gap-8">
-                  <span className="tag-pill tag-ai">AI 自动回复中</span>
-                  <span className="text-xs flex-1" style={{ color: 'var(--text-tertiary)' }}>
-                    全局自动回复已开启，所有新消息由 AI 自动处理
+              <div className="flex items-center gap-8">
+                <div className="radio-group" style={{ margin: 0 }}>
+                  <span
+                    className={`radio-opt${mode === 'ai' ? ' active' : ''}`}
+                    onClick={() => handleModeSwitch('ai')}
+                  >
+                    AI 回复
+                  </span>
+                  <span
+                    className={`radio-opt${mode === 'human' ? ' active' : ''}`}
+                    onClick={() => handleModeSwitch('human')}
+                  >
+                    人工回复
                   </span>
                 </div>
-              ) : (
-                <div className="flex items-center gap-8">
-                  <div className="radio-group" style={{ margin: 0 }}>
-                    <span
-                      className={`radio-opt${mode === 'ai' ? ' active' : ''}`}
-                      onClick={() => handleModeSwitch('ai')}
-                    >
-                      AI 回复
-                    </span>
-                    <span
-                      className={`radio-opt${mode === 'human' ? ' active' : ''}`}
-                      onClick={() => handleModeSwitch('human')}
-                    >
-                      人工回复
-                    </span>
-                  </div>
-                  <span className="text-xs flex-1">
-                    {mode === 'ai' ? 'AI 生成回复，确认后发送' : '手动输入消息并发送'}
-                  </span>
-                </div>
-              )}
+                <span className="text-xs flex-1" style={{ color: 'var(--text-tertiary)' }}>
+                  {mode === 'ai'
+                    ? (notifSettings?.auto_reply_enabled
+                        ? 'AI 自动回复（全局已开启）'
+                        : '点"生成回复"手动触发 AI')
+                    : '此对话由你亲自接管，bot 不会自动回'}
+                </span>
+              </div>
             </div>
 
-            {/* AI Mode Input (only when global auto-reply is OFF and conversation is in AI mode) */}
-            {!notifSettings?.auto_reply_enabled && mode === 'ai' && (
+            {/* AI Mode Input — visible whenever this conv is in AI mode */}
+            {mode === 'ai' && (
               <div style={{ padding: '8px 16px 12px', background: 'var(--bg-primary)', flexShrink: 0 }}>
                 <div className="flex gap-8 items-center" style={{ marginBottom: 6 }}>
                   <input
@@ -542,8 +537,8 @@ export default function Conversations() {
               </div>
             )}
 
-            {/* Human Mode Input (only when global auto-reply is OFF) */}
-            {!notifSettings?.auto_reply_enabled && mode === 'human' && (
+            {/* Human Mode Input — visible whenever this conv is in human mode */}
+            {mode === 'human' && (
               <div style={{ padding: '8px 16px 12px', background: 'var(--bg-primary)', flexShrink: 0 }}>
                 {assist && (
                   <div className="ai-preview" style={{ marginBottom: 8 }}>
