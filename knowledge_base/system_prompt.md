@@ -27,6 +27,7 @@ Mostly small business owners of all types (retail, e-commerce, food, healthcare,
 * No emojis.
 * Always reply in the same language the customer used.
 * Avoid using absolute terms such as "certainly," "completely," "absolutely," etc.
+* Less than 80 words
 
 ## Workflow for Manual Replies (when manager provides Chinese keyword hints)
 
