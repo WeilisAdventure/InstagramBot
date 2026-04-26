@@ -14,8 +14,14 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [customModel, setCustomModel] = useState('');
   const [customProvider, setCustomProvider] = useState('openai');
+  const [welcomeText, setWelcomeText] = useState('');
 
-  useEffect(() => { getSettings().then(setSettings).catch(() => {}); }, []);
+  useEffect(() => {
+    getSettings().then((s) => {
+      setSettings(s);
+      setWelcomeText(s.welcome_message_text || '');
+    }).catch(() => {});
+  }, []);
 
   const update = async (patch: Partial<SettingsType>) => {
     const updated = await updateSettings(patch);
@@ -230,8 +236,13 @@ export default function Settings() {
                   outline: 'none',
                 }}
                 placeholder="如：您好！感谢您联系 Fleet Now Delivery，请问有什么可以帮到您？"
-                value={settings.welcome_message_text}
-                onChange={(e) => update({ welcome_message_text: e.target.value })}
+                value={welcomeText}
+                onChange={(e) => setWelcomeText(e.target.value)}
+                onBlur={() => {
+                  if (welcomeText !== settings.welcome_message_text) {
+                    update({ welcome_message_text: welcomeText });
+                  }
+                }}
               />
             </div>
           )}
