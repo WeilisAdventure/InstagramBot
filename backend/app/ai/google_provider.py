@@ -1,6 +1,6 @@
 import google.generativeai as genai
 from app.ai.base import AIProvider
-from app.knowledge.loader import load_knowledge_base
+from app.ai.prompt import build_system_prompt
 
 
 class GoogleProvider(AIProvider):
@@ -8,26 +8,7 @@ class GoogleProvider(AIProvider):
         genai.configure(api_key=api_key)
         self.model = model
         self.api_key = api_key
-        self.system_prompt = self._build_system_prompt()
-
-    def _build_system_prompt(self) -> str:
-        knowledge = load_knowledge_base()
-        base = (
-            "You are a customer service assistant for a delivery company. "
-            "Answer questions based on the knowledge base below. "
-            "Be friendly, concise, and professional. Keep replies under 150 words."
-        )
-        if knowledge:
-            return f"{base}\n\n# Knowledge Base\n\n{knowledge}"
-        return base
-
-    def reload_knowledge(self, extra_qa: list[dict] | None = None):
-        self.system_prompt = self._build_system_prompt()
-        if extra_qa:
-            qa_text = "\n\n# Additional Q&A\n\n"
-            for entry in extra_qa:
-                qa_text += f"Q: {entry['question']}\nA: {entry['answer']}\n\n"
-            self.system_prompt += qa_text
+        self.system_prompt = build_system_prompt()
 
     def _get_model(self):
         return genai.GenerativeModel(
