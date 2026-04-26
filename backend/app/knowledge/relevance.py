@@ -17,8 +17,8 @@ import jieba
 
 logger = logging.getLogger(__name__)
 
-MAX_ENTRIES = 200  # max Q&A pairs sent to the AI
-MAX_CHARS = 60000  # rough cap to stay under token limits
+MAX_ENTRIES = 30  # max Q&A pairs sent to the AI
+MAX_CHARS = 12000  # rough cap to stay under Anthropic 30K input-tokens/min
 
 _CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf]")
 
@@ -55,8 +55,8 @@ async def filter_relevant(
     translated to Chinese first so jieba tokenisation matches the
     Chinese knowledge base.
     """
-    if len(entries) <= max_entries:
-        return entries
+    if not entries:
+        return []
 
     query = user_message or ""
     if ai is not None and not _has_cjk(query):
