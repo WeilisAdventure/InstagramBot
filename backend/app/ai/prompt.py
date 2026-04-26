@@ -22,9 +22,25 @@ def _load_base_prompt() -> str:
     return _FALLBACK_BASE
 
 
-def build_system_prompt(extra_qa: list[dict] | None = None) -> str:
-    """Build the full system prompt, optionally appending filtered Q&A entries."""
+def build_system_prompt(
+    extra_qa: list[dict] | None = None,
+    preferences: list[str] | None = None,
+) -> str:
+    """Build the full system prompt.
+
+    Args:
+        extra_qa: filtered knowledge base Q&A entries.
+        preferences: long-term manager preferences to apply to all replies.
+    """
     prompt = _load_base_prompt()
+    if preferences:
+        rules = "\n".join(f"- {p}" for p in preferences if p.strip())
+        if rules:
+            prompt += (
+                "\n\n## Manager Preferences (must follow)\n\n"
+                "These are persistent style rules set by the manager. They "
+                "override any conflicting guidance below.\n\n" + rules
+            )
     knowledge = load_knowledge_base()
     if knowledge:
         prompt += f"\n\n## Knowledge Base\n\n{knowledge}"

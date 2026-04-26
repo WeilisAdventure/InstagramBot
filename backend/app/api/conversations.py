@@ -244,10 +244,17 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
             last_user_msg = m.content
             break
 
+    # Load active manager preferences (style rules learnt from past prompts)
+    from app.models.preference import ManagerPreference
+    pref_result = await db.execute(
+        select(ManagerPreference).where(ManagerPreference.is_active == True)
+    )
+    preferences = [p.content for p in pref_result.scalars().all()]
+
     # Filter knowledge to most relevant entries to stay under token limits
     from app.knowledge.relevance import filter_relevant
     filtered = await filter_relevant(knowledge, last_user_msg, ai=ai)
-    ai.reload_knowledge(filtered)
+    ai.reload_knowledge(filtered, preferences=preferences)
 
     # First-message detection: history excluding the current user msg is empty
     prior = [m for m in history if not (m["role"] == "user" and m["content"] == last_user_msg)]
@@ -273,4 +280,11 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
         final_extra += f"\n\n{extra_prompt}"
 
     reply = await ai.generate_reply(last_user_msg, history, extra_prompt=final_extra)
+
+    # Fire-and-forget: distill long-term preferences from this prompt hint
+    if extra_prompt and extra_prompt.strip():
+        import asyncio
+        from app.services.preference_learner import learn_from_prompt
+        asyncio.create_task(learn_from_prompt(ai, extra_prompt.strip()))
+
     return {"reply": reply}

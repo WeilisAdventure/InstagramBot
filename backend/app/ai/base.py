@@ -4,10 +4,14 @@ from abc import ABC, abstractmethod
 class AIProvider(ABC):
     system_prompt: str = ""
 
-    def reload_knowledge(self, extra_qa: list[dict] | None = None):
-        """Rebuild system prompt with filtered knowledge entries."""
+    def reload_knowledge(
+        self,
+        extra_qa: list[dict] | None = None,
+        preferences: list[str] | None = None,
+    ):
+        """Rebuild system prompt with filtered knowledge and manager preferences."""
         from app.ai.prompt import build_system_prompt
-        self.system_prompt = build_system_prompt(extra_qa)
+        self.system_prompt = build_system_prompt(extra_qa, preferences)
 
     @abstractmethod
     async def generate_reply(

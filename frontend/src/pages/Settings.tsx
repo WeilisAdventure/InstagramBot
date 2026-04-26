@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
-import { getSettings, updateSettings } from '../api/client';
-import type { Settings as SettingsType } from '../types';
+import {
+  getSettings,
+  updateSettings,
+  getPreferences,
+  createPreference,
+  updatePreference,
+  deletePreference,
+} from '../api/client';
+import type { Settings as SettingsType, Preference } from '../types';
 
 const PRESET_MODELS = [
   'claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-opus-4-6',
@@ -15,13 +22,39 @@ export default function Settings() {
   const [customModel, setCustomModel] = useState('');
   const [customProvider, setCustomProvider] = useState('openai');
   const [welcomeText, setWelcomeText] = useState('');
+  const [preferences, setPreferences] = useState<Preference[]>([]);
+  const [newPref, setNewPref] = useState('');
+
+  const reloadPreferences = () => {
+    getPreferences().then(setPreferences).catch(() => {});
+  };
 
   useEffect(() => {
     getSettings().then((s) => {
       setSettings(s);
       setWelcomeText(s.welcome_message_text || '');
     }).catch(() => {});
+    reloadPreferences();
+    // Re-poll every 15s so prefs auto-learnt from generate-reply show up
+    const t = setInterval(reloadPreferences, 15000);
+    return () => clearInterval(t);
   }, []);
+
+  const addPreference = async () => {
+    const v = newPref.trim();
+    if (!v) return;
+    await createPreference(v);
+    setNewPref('');
+    reloadPreferences();
+  };
+  const togglePreference = async (p: Preference) => {
+    await updatePreference(p.id, { is_active: !p.is_active });
+    reloadPreferences();
+  };
+  const removePreference = async (id: number) => {
+    await deletePreference(id);
+    reloadPreferences();
+  };
 
   const update = async (patch: Partial<SettingsType>) => {
     const updated = await updateSettings(patch);
@@ -229,6 +262,66 @@ export default function Settings() {
               </button>
             </div>
           </div>
+        </div>
+
+        <hr className="divider" />
+
+        {/* Manager Preferences */}
+        <div className="uppercase-label mb-8">管理者偏好（AI 长期遵循）</div>
+        <div className="card-surface mb-16">
+          <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+            生成回复时输入的提示词会被 AI 自动学习成长期偏好。这里可以查看、停用、删除或手动添加。
+          </div>
+          <div style={{ padding: '0 12px 8px', display: 'flex', gap: 6 }}>
+            <input
+              className="flex-1"
+              value={newPref}
+              onChange={(e) => setNewPref(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addPreference()}
+              placeholder="手动添加一条偏好，如：少用感叹号"
+              style={{ fontSize: 12, padding: '5px 8px' }}
+            />
+            <button className="btn" onClick={addPreference} disabled={!newPref.trim()} style={{ fontSize: 11, padding: '5px 10px' }}>
+              添加
+            </button>
+          </div>
+          {preferences.length === 0 ? (
+            <div style={{ padding: '8px 12px 12px', fontSize: 11, color: 'var(--text-tertiary)' }}>
+              暂无偏好。试着在对话页生成回复时写一句风格提示。
+            </div>
+          ) : (
+            <div>
+              {preferences.map((p) => (
+                <div key={p.id} className="card-row" style={{ alignItems: 'center', gap: 8 }}>
+                  <span
+                    className="flex-1"
+                    style={{
+                      fontSize: 12,
+                      color: p.is_active ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      textDecoration: p.is_active ? 'none' : 'line-through',
+                    }}
+                  >
+                    {p.content}
+                  </span>
+                  <button
+                    className="btn"
+                    onClick={() => togglePreference(p)}
+                    style={{ fontSize: 11, padding: '3px 8px' }}
+                    title={p.is_active ? '停用' : '启用'}
+                  >
+                    {p.is_active ? '停用' : '启用'}
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={() => removePreference(p.id)}
+                    style={{ fontSize: 11, padding: '3px 8px', color: 'var(--red-500, #d33)' }}
+                  >
+                    删除
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <hr className="divider" />

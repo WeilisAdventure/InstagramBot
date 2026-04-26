@@ -182,11 +182,16 @@ class MessageHandler:
         async with async_session() as db:
             knowledge = await self._load_knowledge_entries(db)
             history = await self._get_conversation_history(db, conv_id)
+            from app.models.preference import ManagerPreference
+            pref_q = await db.execute(
+                select(ManagerPreference).where(ManagerPreference.is_active == True)
+            )
+            preferences = [p.content for p in pref_q.scalars().all()]
 
         # Filter knowledge to most relevant entries to stay under token limits
         from app.knowledge.relevance import filter_relevant
         filtered = await filter_relevant(knowledge, msg.text or "", ai=self.ai)
-        self.ai.reload_knowledge(filtered)
+        self.ai.reload_knowledge(filtered, preferences=preferences)
 
         # First-message detection: history excluding the just-saved user msg
         prior = [m for m in history if not (m["role"] == "user" and m["content"] == (msg.text or ""))]

@@ -114,3 +114,13 @@ export const simulateComment = (comment_text: string, username?: string) =>
 export const getSettings = () => request<import('../types').Settings>('/settings');
 export const updateSettings = (data: Partial<import('../types').Settings>) =>
   request<import('../types').Settings>('/settings', { method: 'PATCH', body: JSON.stringify(data) });
+
+// Manager Preferences
+export const getPreferences = () =>
+  request<import('../types').Preference[]>('/preferences');
+export const createPreference = (content: string) =>
+  request<import('../types').Preference>('/preferences', { method: 'POST', body: JSON.stringify({ content, is_active: true }) });
+export const updatePreference = (id: number, data: Partial<{ content: string; is_active: boolean }>) =>
+  request<import('../types').Preference>(`/preferences/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deletePreference = (id: number) =>
+  request<void>(`/preferences/${id}`, { method: 'DELETE' });

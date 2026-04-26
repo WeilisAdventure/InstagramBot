@@ -88,6 +88,14 @@ export interface Settings {
   default_conversation_mode: 'ai' | 'human';
 }
 
+export interface Preference {
+  id: number;
+  content: string;
+  source_prompt: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface SimulateResult {
   triggered: boolean;
   matched_rule: string | null;
