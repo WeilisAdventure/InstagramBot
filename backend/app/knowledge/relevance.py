@@ -1,9 +1,11 @@
-"""Simple keyword-based knowledge relevance filter.
+"""Keyword-based knowledge relevance filter with Chinese word segmentation.
 
 Selects the most relevant Q&A entries based on keyword overlap with
 the user's message.  Falls back to the first MAX_ENTRIES entries when
 no keywords match, so the AI always has some context.
 """
+
+import jieba
 
 MAX_ENTRIES = 20  # max Q&A pairs sent to the AI
 MAX_CHARS = 15000  # rough cap to stay under token limits
@@ -22,8 +24,8 @@ def filter_relevant(
     if len(entries) <= max_entries:
         return entries
 
-    # Tokenise the query into lowercase keywords (>= 2 chars)
-    keywords = {w.lower() for w in user_message.split() if len(w) >= 2}
+    # Tokenise the query using jieba (handles Chinese + English)
+    keywords = {w.lower() for w in jieba.lcut(user_message) if len(w) >= 2}
     if not keywords:
         return entries[:max_entries]
 
