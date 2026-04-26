@@ -234,16 +234,25 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     # First-message detection: history excluding the current user msg is empty
     prior = [m for m in history if not (m["role"] == "user" and m["content"] == last_user_msg)]
     is_first = len(prior) == 0
-    final_extra = extra_prompt or ""
-    if is_first:
-        intro_hint = (
-            "This is the customer's FIRST message. You MUST start your reply by "
-            "briefly introducing yourself as Achilles Chen (A.C.), Manager at "
-            "FleetNow Delivery, then ask whether they need personal or business "
-            "delivery (pricing differs by volume), and emphasize our unlimited-"
-            "distance same-day flat-rate service."
-        )
-        final_extra = f"{intro_hint}\n\n{final_extra}".strip()
 
-    reply = await ai.generate_reply(last_user_msg, history, extra_prompt=final_extra or None)
+    # Manual generate-reply ALWAYS produces a Chinese draft for manager review.
+    # Translation to the customer's language happens at send time per
+    # translation_strategy setting (see /send endpoint).
+    draft_directive = (
+        "OUTPUT LANGUAGE OVERRIDE: Reply in Simplified Chinese (中文) ONLY. "
+        "This is a draft that the manager will review before sending; do NOT "
+        "include any English text in your reply. The system will translate "
+        "to the customer's language separately when the manager sends it."
+    )
+    final_extra = draft_directive
+    if is_first:
+        final_extra += (
+            "\n\n这是客户的第一条消息。回复必须以自我介绍开头：你是 Achilles Chen "
+            "(A.C.)，FleetNow Delivery 的 Manager。然后询问对方是个人还是商家配送"
+            "（价格按月单量不同），并强调我们的同城无距离限制同日达统一价服务。"
+        )
+    if extra_prompt:
+        final_extra += f"\n\n{extra_prompt}"
+
+    reply = await ai.generate_reply(last_user_msg, history, extra_prompt=final_extra)
     return {"reply": reply}
