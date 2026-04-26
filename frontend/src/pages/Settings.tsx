@@ -207,6 +207,32 @@ export default function Settings() {
 
         <hr className="divider" />
 
+        {/* New conversation default mode */}
+        <div className="uppercase-label mb-8">新对话默认模式</div>
+        <div className="card-surface mb-16">
+          <div className="card-row">
+            <span className="card-key">新用户首次来消息时</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                className={`btn${settings.default_conversation_mode === 'ai' ? '-primary' : ''}`}
+                style={{ fontSize: 11, padding: '4px 10px' }}
+                onClick={() => update({ default_conversation_mode: 'ai' })}
+              >
+                AI 自动
+              </button>
+              <button
+                className={`btn${settings.default_conversation_mode === 'human' ? '-primary' : ''}`}
+                style={{ fontSize: 11, padding: '4px 10px' }}
+                onClick={() => update({ default_conversation_mode: 'human' })}
+              >
+                我亲自接
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <hr className="divider" />
+
         {/* Welcome Message */}
         <div className="uppercase-label mb-8">欢迎语</div>
         <div className="card-surface mb-16">

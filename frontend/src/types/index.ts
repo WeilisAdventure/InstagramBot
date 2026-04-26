@@ -85,6 +85,7 @@ export interface Settings {
   comment_trigger_enabled: boolean;
   welcome_message_enabled: boolean;
   welcome_message_text: string;
+  default_conversation_mode: 'ai' | 'human';
 }
 
 export interface SimulateResult {

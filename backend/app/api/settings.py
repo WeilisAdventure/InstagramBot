@@ -24,6 +24,7 @@ DEFAULTS = {
     "comment_trigger_enabled": "true",
     "welcome_message_enabled": "false",
     "welcome_message_text": "",
+    "default_conversation_mode": "ai",
 }
 
 
@@ -77,6 +78,7 @@ async def get_settings(request: Request = None, db: AsyncSession = Depends(get_d
         comment_trigger_enabled=(await _get_setting(db, "comment_trigger_enabled")).lower() in ("true", "1"),
         welcome_message_enabled=(await _get_setting(db, "welcome_message_enabled")).lower() in ("true", "1"),
         welcome_message_text=await _get_setting(db, "welcome_message_text"),
+        default_conversation_mode=await _get_setting(db, "default_conversation_mode"),
     )
 
 

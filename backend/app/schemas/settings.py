@@ -19,6 +19,7 @@ class SettingsResponse(BaseModel):
     comment_trigger_enabled: bool
     welcome_message_enabled: bool
     welcome_message_text: str
+    default_conversation_mode: str = "ai"
 
 
 class SettingsUpdate(BaseModel):
@@ -36,6 +37,7 @@ class SettingsUpdate(BaseModel):
     comment_trigger_enabled: bool | None = None
     welcome_message_enabled: bool | None = None
     welcome_message_text: str | None = None
+    default_conversation_mode: str | None = None
 
 
 class SimulateRequest(BaseModel):

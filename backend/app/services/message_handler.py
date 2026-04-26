@@ -42,7 +42,7 @@ class MessageHandler:
     async def _get_or_create_conversation(
         self, db: AsyncSession, sender_id: str, username: str,
         trigger_source: str = "direct_dm", rule_id: int | None = None,
-        mode: str = "ai",
+        mode: str | None = None,
     ) -> tuple[Conversation, bool]:
         """Returns (conversation, is_new)."""
         result = await db.execute(
@@ -53,6 +53,10 @@ class MessageHandler:
         conv = result.scalar_one_or_none()
         if conv:
             return conv, False
+        # Default new-conv mode comes from the system setting if caller didn't pin one
+        if mode is None:
+            default_mode = await self._get_setting_value("default_conversation_mode", "ai")
+            mode = default_mode if default_mode in ("ai", "human") else "ai"
         conv = Conversation(
             ig_user_id=sender_id,
             ig_username=username,
@@ -141,16 +145,13 @@ class MessageHandler:
                     else:
                         logger.warning(f"Failed to send welcome message to {msg.sender_id}")
 
-        if auto_reply_on:
-            # Global ON → auto reply all conversations, ignore per-conversation mode
-            pass
-        else:
-            # Global OFF → per-conversation mode decides
-            if conv_mode != "ai":
-                logger.info(f"Conversation {conv_id} is in human mode, skipping AI reply")
-                return
-            # conv_mode == "ai" but global off → no auto reply, user triggers manually in UI
+        # AI auto-reply requires BOTH the global switch ON AND this conv in "ai" mode.
+        # Global OFF = bot fully muted; conv mode "human" = manager handles this one.
+        if not auto_reply_on:
             logger.info("Global auto-reply disabled, message saved only")
+            return
+        if conv_mode != "ai":
+            logger.info(f"Conversation {conv_id} is in human mode, skipping AI reply")
             return
 
         # Phase 2: Generate and send AI reply in a new session
