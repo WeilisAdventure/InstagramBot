@@ -111,14 +111,32 @@ async def send_message(conv_id: int, data: SendMessageRequest, request: Request,
     strategy_setting = strategy_result.scalar_one_or_none()
     strategy = strategy_setting.value if strategy_setting else "auto"
 
-    if strategy == "always":
-        try:
-            ai = request.app.state.ai_provider
-            tr_result = await ai.translate_message(send_text)
-            send_text = tr_result["translated"]
-        except Exception:
-            pass  # Send original if translation fails
-    # "auto" / "never" = send as-is for manual messages
+    if strategy in ("always", "auto"):
+        import re
+        reply_has_cjk = bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf]", send_text))
+        should_translate = strategy == "always"
+        if strategy == "auto":
+            # Detect customer language from their last user message in this conv
+            last_user_q = await db.execute(
+                select(Message)
+                .where(Message.conversation_id == conv_id, Message.role == "user")
+                .order_by(Message.created_at.desc())
+                .limit(1)
+            )
+            last_user = last_user_q.scalar_one_or_none()
+            customer_has_cjk = bool(
+                last_user and re.search(r"[\u4e00-\u9fff\u3400-\u4dbf]", last_user.content or "")
+            )
+            # Translate when reply language differs from customer language
+            should_translate = reply_has_cjk != customer_has_cjk
+        if should_translate:
+            try:
+                ai = request.app.state.ai_provider
+                tr_result = await ai.translate_message(send_text)
+                send_text = tr_result["translated"]
+            except Exception:
+                pass  # Send original if translation fails
+    # "never" = send as-is
 
     # Try to send via Instagram, but save message regardless
     ig_client = request.app.state.ig_client

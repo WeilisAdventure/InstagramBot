@@ -230,14 +230,21 @@ class MessageHandler:
 
         # Apply translation strategy before sending
         strategy = await self._get_setting_value("translation_strategy", "auto")
-        if strategy == "always":
-            try:
-                tr_result = await self.ai.translate_message(reply_text)
-                original_reply = reply_text
-                reply_text = tr_result["translated"]
-                logger.info(f"Translation applied (always): {original_reply[:50]}... → {reply_text[:50]}...")
-            except Exception as e:
-                logger.warning(f"Translation failed, sending original reply: {e}")
+        if strategy in ("always", "auto"):
+            import re
+            reply_has_cjk = bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf]", reply_text))
+            should_translate = strategy == "always"
+            if strategy == "auto":
+                customer_has_cjk = bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf]", msg.text or ""))
+                should_translate = reply_has_cjk != customer_has_cjk
+            if should_translate:
+                try:
+                    tr_result = await self.ai.translate_message(reply_text)
+                    original_reply = reply_text
+                    reply_text = tr_result["translated"]
+                    logger.info(f"Translation applied ({strategy}): {original_reply[:50]}... → {reply_text[:50]}...")
+                except Exception as e:
+                    logger.warning(f"Translation failed, sending original reply: {e}")
 
         # Simulate typing delay (read from DB)
         delay = int(await self._get_setting_value("reply_delay_seconds", "3"))
