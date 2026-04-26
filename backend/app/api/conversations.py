@@ -231,5 +231,19 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     filtered = await filter_relevant(knowledge, last_user_msg, ai=ai)
     ai.reload_knowledge(filtered)
 
-    reply = await ai.generate_reply(last_user_msg, history, extra_prompt=extra_prompt or None)
+    # First-message detection: history excluding the current user msg is empty
+    prior = [m for m in history if not (m["role"] == "user" and m["content"] == last_user_msg)]
+    is_first = len(prior) == 0
+    final_extra = extra_prompt or ""
+    if is_first:
+        intro_hint = (
+            "This is the customer's FIRST message. You MUST start your reply by "
+            "briefly introducing yourself as Achilles Chen (A.C.), Manager at "
+            "FleetNow Delivery, then ask whether they need personal or business "
+            "delivery (pricing differs by volume), and emphasize our unlimited-"
+            "distance same-day flat-rate service."
+        )
+        final_extra = f"{intro_hint}\n\n{final_extra}".strip()
+
+    reply = await ai.generate_reply(last_user_msg, history, extra_prompt=final_extra or None)
     return {"reply": reply}
