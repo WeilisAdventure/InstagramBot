@@ -9,6 +9,8 @@ def load_knowledge_base() -> str:
     if not KNOWLEDGE_DIR.exists():
         return ""
     for md_file in sorted(KNOWLEDGE_DIR.glob("*.md")):
+        if md_file.name == "system_prompt.md":
+            continue  # base prompt loaded separately, not as knowledge
         content = md_file.read_text(encoding="utf-8").strip()
         if content:
             parts.append(content)

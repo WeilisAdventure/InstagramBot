@@ -184,7 +184,7 @@ class MessageHandler:
 
         # Filter knowledge to most relevant entries to stay under token limits
         from app.knowledge.relevance import filter_relevant
-        filtered = filter_relevant(knowledge, msg.text or "")
+        filtered = await filter_relevant(knowledge, msg.text or "", ai=self.ai)
         self.ai.reload_knowledge(filtered)
 
         try:
