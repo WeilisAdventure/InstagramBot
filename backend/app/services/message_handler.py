@@ -317,11 +317,19 @@ class MessageHandler:
             db.add(event)
             try:
                 await db.commit()
+                await db.refresh(event)
+                event_id = event.id
             except IntegrityError:
                 # Duplicate webhook delivery for the same comment_id — skip silently.
                 await db.rollback()
                 logger.info(f"Duplicate comment event for {comment.comment_id}, skipping")
                 return
+
+        # Fire-and-forget: fetch the post permalink in the background so the
+        # inbox can link straight to the IG post. Non-blocking; failures are
+        # logged inside the helper.
+        if event_id and comment.media_id and hasattr(self.ig, "get_media_permalink"):
+            asyncio.create_task(self._enrich_event_permalink(event_id, comment.media_id))
 
         if not trigger_on:
             logger.info("Comment trigger disabled, event logged only")
@@ -389,3 +397,19 @@ class MessageHandler:
                 db.add(assistant_msg)
 
             await db.commit()
+
+    async def _enrich_event_permalink(self, event_id: int, media_id: str):
+        """Fetch the post permalink via Graph API and persist it on the event."""
+        try:
+            permalink = await self.ig.get_media_permalink(media_id)
+        except Exception as e:
+            logger.warning(f"Permalink fetch failed for media {media_id}: {e}")
+            return
+        if not permalink:
+            return
+        from app.models.comment_event import CommentEvent
+        async with async_session() as db:
+            ev = await db.get(CommentEvent, event_id)
+            if ev is not None:
+                ev.permalink = permalink
+                await db.commit()

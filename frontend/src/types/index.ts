@@ -106,6 +106,7 @@ export interface CommentEvent {
   matched_rule_id: number | null;
   action_taken: 'auto_replied' | 'skipped_disabled' | 'no_match';
   is_read: boolean;
+  permalink: string | null;
   created_at: string;
 }
 

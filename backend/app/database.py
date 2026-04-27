@@ -17,5 +17,18 @@ async def get_db():
 
 
 async def init_db():
+    from sqlalchemy import text as _sql_text
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # Lightweight in-place schema migrations for SQLite (which create_all
+        # does not handle for ALTERs). Each entry: (table, column, ddl).
+        migrations = [
+            ("comment_events", "permalink", "TEXT"),
+        ]
+        for table, column, ddl in migrations:
+            res = await conn.execute(_sql_text(f"PRAGMA table_info({table})"))
+            cols = {row[1] for row in res.fetchall()}
+            if column not in cols:
+                await conn.execute(_sql_text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))

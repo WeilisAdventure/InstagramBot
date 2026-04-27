@@ -112,6 +112,29 @@ class GraphApiClient(InstagramClient):
             logger.error(f"Graph API reply_to_comment error: {e}")
             return False
 
+    async def get_media_permalink(self, media_id: str) -> str | None:
+        """Fetch the public permalink for a media id via Graph API.
+
+        Returns the URL string or None if the lookup fails (e.g. expired
+        token, deleted post, missing scope).
+        """
+        if not media_id or not self.token:
+            return None
+        try:
+            resp = await self.http.get(
+                f"{GRAPH_API_BASE}/{media_id}",
+                params={"fields": "permalink", "access_token": self.token},
+            )
+            if resp.status_code != 200:
+                logger.warning(
+                    f"get_media_permalink failed ({resp.status_code}) for {media_id}: {resp.text[:200]}"
+                )
+                return None
+            return resp.json().get("permalink")
+        except Exception as e:
+            logger.warning(f"get_media_permalink error for {media_id}: {e}")
+            return None
+
     async def get_user_profile(self, user_id: str) -> dict | None:
         """Fetch user profile info (for getting username from webhook sender_id).
 

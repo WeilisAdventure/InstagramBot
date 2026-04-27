@@ -22,31 +22,8 @@ function parseTs(iso: string): number {
   const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso);
   return new Date(hasTz ? iso : iso + 'Z').getTime();
 }
-// Instagram numeric media id -> URL shortcode (base64 with -_ alphabet)
-function mediaIdToShortcode(raw: string): string {
-  if (!raw) return '';
-  // Webhook sometimes returns "<media_id>_<owner_id>"; only the first part is the media.
-  const idStr = raw.split('_')[0];
-  if (!/^\d+$/.test(idStr)) return '';
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  try {
-    let id = BigInt(idStr);
-    let shortcode = '';
-    while (id > 0n) {
-      const r = Number(id % 64n);
-      shortcode = alphabet[r] + shortcode;
-      id = id / 64n;
-    }
-    return shortcode;
-  } catch {
-    return '';
-  }
-}
-
-function postUrl(mediaId: string): string | null {
-  const sc = mediaIdToShortcode(mediaId);
-  return sc ? `https://www.instagram.com/p/${sc}/` : null;
-}
+// We rely on Graph API's permalink (server-fetched). The numeric->shortcode
+// trick is unreliable across account types and can yield "Post isn't available".
 
 function timeAgo(iso: string): string {
   const diff = (Date.now() - parseTs(iso)) / 1000;
@@ -198,9 +175,9 @@ export default function Comments() {
                   {c.text || <em style={{ color: 'var(--text-tertiary)' }}>（空评论）</em>}
                 </div>
                 <div className="flex items-center gap-6" style={{ paddingLeft: c.is_read ? 0 : 14 }}>
-                  {postUrl(c.media_id) ? (
+                  {c.permalink ? (
                     <a
-                      href={postUrl(c.media_id)!}
+                      href={c.permalink}
                       target="_blank"
                       rel="noreferrer"
                       className="text-xs"
@@ -210,7 +187,7 @@ export default function Comments() {
                     </a>
                   ) : (
                     <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                      帖子 ID: {c.media_id || '未知'}
+                      帖子链接获取中...
                     </span>
                   )}
                   <span className="flex-1" />

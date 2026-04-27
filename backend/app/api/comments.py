@@ -88,6 +88,33 @@ async def delete_event(event_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
 
+@router.post("/backfill-permalinks")
+async def backfill_permalinks(request: Request, db: AsyncSession = Depends(get_db)):
+    """Look up Graph-API permalink for any event missing one. Idempotent."""
+    ig_client = getattr(request.app.state, "ig_client", None)
+    if not ig_client or not hasattr(ig_client, "get_media_permalink"):
+        raise HTTPException(503, "Instagram client unavailable")
+
+    rows_q = await db.execute(
+        select(CommentEvent).where(
+            (CommentEvent.permalink.is_(None)) & (CommentEvent.media_id != "")
+        )
+    )
+    rows = rows_q.scalars().all()
+    updated = 0
+    for ev in rows:
+        try:
+            link = await ig_client.get_media_permalink(ev.media_id)
+        except Exception:
+            link = None
+        if link:
+            ev.permalink = link
+            updated += 1
+    if updated:
+        await db.commit()
+    return {"checked": len(rows), "updated": updated}
+
+
 @router.post("/{event_id}/open-conversation")
 async def open_conversation(event_id: int, request: Request, db: AsyncSession = Depends(get_db)):
     """Find the active conversation for the commenter (or create one) and

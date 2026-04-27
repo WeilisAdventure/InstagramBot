@@ -12,6 +12,7 @@ class CommentEventResponse(BaseModel):
     matched_rule_id: int | None
     action_taken: str
     is_read: bool
+    permalink: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

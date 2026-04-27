@@ -26,6 +26,9 @@ class CommentEvent(Base):
     action_taken: Mapped[str] = mapped_column(String(32), default="no_match")
 
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # Public Instagram URL of the post the comment is on; populated lazily
+    # via Graph API after the event is logged.
+    permalink: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
