@@ -96,6 +96,25 @@ export interface Preference {
   created_at: string;
 }
 
+export interface CommentEvent {
+  id: number;
+  comment_id: string;
+  media_id: string;
+  user_id: string;
+  username: string;
+  text: string;
+  matched_rule_id: number | null;
+  action_taken: 'auto_replied' | 'skipped_disabled' | 'no_match';
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface CommentEventList {
+  items: CommentEvent[];
+  unread_count: number;
+  total: number;
+}
+
 export interface SimulateResult {
   triggered: boolean;
   matched_rule: string | null;

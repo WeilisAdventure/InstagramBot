@@ -335,7 +335,16 @@ export default function Conversations() {
                 </div>
               )}
               <div className="list-item-info">
-                <div className="list-item-name">{c.ig_username || c.ig_user_id}</div>
+                <div
+                  className="list-item-name"
+                  style={c.trigger_source === 'comment_rule' ? { color: '#9333ea' } : undefined}
+                  title={c.trigger_source === 'comment_rule' ? '由评论触发的客户' : undefined}
+                >
+                  {c.trigger_source === 'comment_rule' && (
+                    <span style={{ marginRight: 4 }} aria-hidden>💬</span>
+                  )}
+                  {c.ig_username || c.ig_user_id}
+                </div>
                 <div className="list-item-last">{c.last_message || '暂无消息'}</div>
               </div>
               <div className="list-item-meta">

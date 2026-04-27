@@ -280,9 +280,51 @@ class MessageHandler:
                 logger.error(f"Failed to send DM reply to {msg.sender_username}")
 
     async def handle_comment(self, comment: IncomingComment):
-        """Handle an incoming comment: check trigger rules and act."""
-        if not await self._is_enabled("comment_trigger_enabled"):
-            logger.info("Comment trigger disabled, skipping")
+        """Handle an incoming comment: log the event then optionally trigger.
+
+        Every comment is recorded in `comment_events` so the manager has
+        visibility even when comment-trigger is disabled. The auto-action
+        (public reply + DM + conversation creation) only runs when the
+        global toggle is on AND a rule matches.
+        """
+        from app.models.comment_event import CommentEvent
+        from sqlalchemy.exc import IntegrityError
+
+        trigger_on = await self._is_enabled("comment_trigger_enabled")
+
+        async with async_session() as db:
+            rule = None
+            if trigger_on:
+                rule = await find_matching_rule(db, comment.text)
+
+            if not trigger_on:
+                action = "skipped_disabled"
+            elif rule is None:
+                action = "no_match"
+            else:
+                action = "auto_replied"
+
+            event = CommentEvent(
+                comment_id=comment.comment_id,
+                media_id=comment.media_id or "",
+                user_id=comment.user_id or "",
+                username=comment.username or "",
+                text=comment.text or "",
+                matched_rule_id=rule.id if rule else None,
+                action_taken=action,
+                is_read=False,
+            )
+            db.add(event)
+            try:
+                await db.commit()
+            except IntegrityError:
+                # Duplicate webhook delivery for the same comment_id — skip silently.
+                await db.rollback()
+                logger.info(f"Duplicate comment event for {comment.comment_id}, skipping")
+                return
+
+        if not trigger_on:
+            logger.info("Comment trigger disabled, event logged only")
             return
 
         async with async_session() as db:

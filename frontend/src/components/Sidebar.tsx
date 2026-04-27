@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { getSettings, updateSettings } from '../api/client';
+import { getSettings, updateSettings, getCommentUnreadCount } from '../api/client';
 
 const dotColorMap: Record<string, string> = {
   '#185FA5': 'blue',
@@ -16,6 +16,7 @@ const sections = [
   ]},
   { group: '核心功能', items: [
     { path: '/conversations', label: '私信对话', dotColor: '#22c55e' },
+    { path: '/comments', label: '评论收件箱', dotColor: '#dc2626', badgeKey: 'comments' as const },
     { path: '/rules', label: '评论触发规则', dotColor: '#185FA5' },
     { path: '/simulate', label: '模拟测试', dotColor: '#534AB7' },
   ]},
@@ -28,9 +29,16 @@ const sections = [
 export default function Sidebar() {
   const [t1, setT1] = useState(true);
   const [t2, setT2] = useState(true);
+  const [commentUnread, setCommentUnread] = useState(0);
 
   useEffect(() => {
     getSettings().then((s) => { setT1(s.auto_reply_enabled); setT2(s.comment_trigger_enabled); }).catch(() => {});
+    const refresh = () => {
+      getCommentUnreadCount().then((d) => setCommentUnread(d.unread)).catch(() => {});
+    };
+    refresh();
+    const id = setInterval(refresh, 15000);
+    return () => clearInterval(id);
   }, []);
 
   const toggle = async (which: 1 | 2) => {
@@ -79,7 +87,23 @@ export default function Sidebar() {
                 className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
               >
                 <span className={`nav-dot ${dotColorMap[item.dotColor] || 'gray'}`} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {('badgeKey' in item && item.badgeKey === 'comments' && commentUnread > 0) && (
+                  <span
+                    style={{
+                      background: '#dc2626',
+                      color: '#fff',
+                      fontSize: 10,
+                      padding: '1px 6px',
+                      borderRadius: 8,
+                      fontWeight: 600,
+                      minWidth: 16,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {commentUnread > 99 ? '99+' : commentUnread}
+                  </span>
+                )}
               </NavLink>
             ))}
           </div>

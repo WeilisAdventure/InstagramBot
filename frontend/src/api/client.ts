@@ -124,3 +124,23 @@ export const updatePreference = (id: number, data: Partial<{ content: string; is
   request<import('../types').Preference>(`/preferences/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 export const deletePreference = (id: number) =>
   request<void>(`/preferences/${id}`, { method: 'DELETE' });
+
+// Comment events
+export const getCommentEvents = (opts?: { unread_only?: boolean; limit?: number; offset?: number }) => {
+  const params = new URLSearchParams();
+  if (opts?.unread_only) params.set('unread_only', 'true');
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts?.offset !== undefined) params.set('offset', String(opts.offset));
+  const qs = params.toString();
+  return request<import('../types').CommentEventList>(`/comments${qs ? `?${qs}` : ''}`);
+};
+export const getCommentUnreadCount = () =>
+  request<{ unread: number }>('/comments/unread-count');
+export const markCommentRead = (id: number) =>
+  request<import('../types').CommentEvent>(`/comments/${id}/mark-read`, { method: 'POST' });
+export const markAllCommentsRead = () =>
+  request<{ marked: number }>('/comments/mark-all-read', { method: 'POST' });
+export const deleteCommentEvent = (id: number) =>
+  request<void>(`/comments/${id}`, { method: 'DELETE' });
+export const sendCommentDm = (id: number, text: string) =>
+  request<{ sent: boolean }>(`/comments/${id}/dm`, { method: 'POST', body: JSON.stringify({ text }) });
