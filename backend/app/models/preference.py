@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Integer, Text, Boolean, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
@@ -19,5 +19,5 @@ class ManagerPreference(Base):
     source_prompt: Mapped[str] = mapped_column(Text, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.utcnow()
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

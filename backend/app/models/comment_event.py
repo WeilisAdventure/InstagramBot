@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import String, Integer, Text, Boolean, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
@@ -27,7 +27,7 @@ class CommentEvent(Base):
 
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.utcnow()
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
 

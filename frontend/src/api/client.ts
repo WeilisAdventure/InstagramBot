@@ -142,5 +142,5 @@ export const markAllCommentsRead = () =>
   request<{ marked: number }>('/comments/mark-all-read', { method: 'POST' });
 export const deleteCommentEvent = (id: number) =>
   request<void>(`/comments/${id}`, { method: 'DELETE' });
-export const sendCommentDm = (id: number, text: string) =>
-  request<{ sent: boolean }>(`/comments/${id}/dm`, { method: 'POST', body: JSON.stringify({ text }) });
+export const openCommentConversation = (id: number) =>
+  request<{ conversation_id: number }>(`/comments/${id}/open-conversation`, { method: 'POST' });

@@ -88,22 +88,48 @@ async def delete_event(event_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
 
-@router.post("/{event_id}/dm")
-async def send_manual_dm(event_id: int, payload: dict, request: Request, db: AsyncSession = Depends(get_db)):
-    """Manager-triggered DM to the commenter. Marks the event as read."""
+@router.post("/{event_id}/open-conversation")
+async def open_conversation(event_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Find the active conversation for the commenter (or create one) and
+    return its id, so the frontend can jump straight into the DM thread.
+
+    Marks the comment event as read.
+    """
+    from app.models.conversation import Conversation
+    from sqlalchemy import select
+
     ev = await db.get(CommentEvent, event_id)
     if not ev:
         raise HTTPException(404, "Comment event not found")
-    text = (payload.get("text") or "").strip()
-    if not text:
-        raise HTTPException(400, "text required")
-    ig_client = getattr(request.app.state, "ig_client", None)
-    if not ig_client:
-        raise HTTPException(503, "Instagram client unavailable")
-    try:
-        sent = await ig_client.send_dm(ev.user_id, text)
-    except Exception as e:
-        raise HTTPException(502, f"Instagram send failed: {e}")
+    if not ev.user_id:
+        raise HTTPException(400, "Comment has no user_id; cannot open conversation")
+
+    # Match the lookup logic in MessageHandler._get_or_create_conversation
+    result = await db.execute(
+        select(Conversation)
+        .where(Conversation.ig_user_id == ev.user_id, Conversation.is_resolved == False)
+        .order_by(Conversation.created_at.desc())
+    )
+    conv = result.scalar_one_or_none()
+
+    if not conv:
+        # Read the manager-set default mode, same as auto-created DM convs
+        from app.models.settings import SystemSettings
+        mode_setting_q = await db.execute(
+            select(SystemSettings).where(SystemSettings.key == "default_conversation_mode")
+        )
+        mode_setting = mode_setting_q.scalar_one_or_none()
+        default_mode = mode_setting.value if mode_setting and mode_setting.value in ("ai", "human") else "ai"
+        conv = Conversation(
+            ig_user_id=ev.user_id,
+            ig_username=ev.username or "",
+            trigger_source="manual_from_comment",
+            mode=default_mode,
+        )
+        db.add(conv)
+        await db.flush()
+
     ev.is_read = True
     await db.commit()
-    return {"sent": bool(sent)}
+    await db.refresh(conv)
+    return {"conversation_id": conv.id}

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   getConversations,
   getConversation,
@@ -67,9 +68,25 @@ function timeAgo(dateStr: string) {
 }
 
 export default function Conversations() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [convs, setConvs] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
+
+  // Pick up ?conv=ID (e.g. when navigated from the comments inbox)
+  useEffect(() => {
+    const convParam = searchParams.get('conv');
+    if (convParam) {
+      const id = parseInt(convParam, 10);
+      if (!isNaN(id)) {
+        setSelectedId(id);
+        // Strip the param so reload/back doesn't keep re-selecting
+        searchParams.delete('conv');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Chat state
   const [input, setInput] = useState('');

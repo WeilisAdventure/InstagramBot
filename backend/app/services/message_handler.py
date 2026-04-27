@@ -328,11 +328,23 @@ class MessageHandler:
             return
 
         async with async_session() as db:
+            # Belt-and-suspenders: re-read the toggle right before any auto-action
+            # so a toggle flipped between log-time and act-time still wins.
+            if not await self._is_enabled("comment_trigger_enabled"):
+                logger.info(
+                    f"Comment trigger toggled off mid-handler, aborting auto-action "
+                    f"for comment {comment.comment_id}"
+                )
+                return
+
             rule = await find_matching_rule(db, comment.text)
             if not rule:
                 return
 
-            logger.info(f"Comment from @{comment.username} matched rule '{rule.name}'")
+            logger.info(
+                f"Comment trigger ACTING: rule='{rule.name}' on comment from "
+                f"@{comment.username} (comment_id={comment.comment_id})"
+            )
 
             # Public reply to the comment
             if rule.public_reply_template:

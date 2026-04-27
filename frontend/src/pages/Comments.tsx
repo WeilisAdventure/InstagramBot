@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   getCommentEvents,
   markCommentRead,
   markAllCommentsRead,
   deleteCommentEvent,
-  sendCommentDm,
+  openCommentConversation,
 } from '../api/client';
 import type { CommentEvent } from '../types';
 
@@ -14,8 +15,42 @@ const ACTION_LABEL: Record<CommentEvent['action_taken'], { text: string; color: 
   no_match: { text: '无匹配规则', color: '#6b7280' },
 };
 
+function parseTs(iso: string): number {
+  // Backend may emit naive UTC strings (no Z, no offset). new Date() would
+  // then parse them as local time, which is wrong. If there's no timezone
+  // marker, treat the value as UTC.
+  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasTz ? iso : iso + 'Z').getTime();
+}
+// Instagram numeric media id -> URL shortcode (base64 with -_ alphabet)
+function mediaIdToShortcode(raw: string): string {
+  if (!raw) return '';
+  // Webhook sometimes returns "<media_id>_<owner_id>"; only the first part is the media.
+  const idStr = raw.split('_')[0];
+  if (!/^\d+$/.test(idStr)) return '';
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  try {
+    let id = BigInt(idStr);
+    let shortcode = '';
+    while (id > 0n) {
+      const r = Number(id % 64n);
+      shortcode = alphabet[r] + shortcode;
+      id = id / 64n;
+    }
+    return shortcode;
+  } catch {
+    return '';
+  }
+}
+
+function postUrl(mediaId: string): string | null {
+  const sc = mediaIdToShortcode(mediaId);
+  return sc ? `https://www.instagram.com/p/${sc}/` : null;
+}
+
 function timeAgo(iso: string): string {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  const diff = (Date.now() - parseTs(iso)) / 1000;
+  if (diff < 0) return '刚刚';
   if (diff < 60) return `${Math.floor(diff)}秒前`;
   if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
@@ -23,12 +58,10 @@ function timeAgo(iso: string): string {
 }
 
 export default function Comments() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<CommentEvent[]>([]);
   const [unread, setUnread] = useState(0);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const [dmTarget, setDmTarget] = useState<CommentEvent | null>(null);
-  const [dmText, setDmText] = useState('');
-  const [sending, setSending] = useState(false);
 
   const load = async () => {
     try {
@@ -59,18 +92,13 @@ export default function Comments() {
     await deleteCommentEvent(id);
     load();
   };
-  const onSendDm = async () => {
-    if (!dmTarget || !dmText.trim()) return;
-    setSending(true);
+  const onOpenConversation = async (id: number) => {
     try {
-      await sendCommentDm(dmTarget.id, dmText.trim());
-      setDmTarget(null);
-      setDmText('');
-      load();
+      const { conversation_id } = await openCommentConversation(id);
+      navigate(`/conversations?conv=${conversation_id}`);
     } catch (e) {
-      alert('发送失败：' + (e as Error).message);
+      alert('打开会话失败：' + (e as Error).message);
     }
-    setSending(false);
   };
 
   return (
@@ -170,25 +198,28 @@ export default function Comments() {
                   {c.text || <em style={{ color: 'var(--text-tertiary)' }}>（空评论）</em>}
                 </div>
                 <div className="flex items-center gap-6" style={{ paddingLeft: c.is_read ? 0 : 14 }}>
-                  <a
-                    href={`https://www.instagram.com/p/${c.media_id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs"
-                    style={{ color: 'var(--accent)' }}
-                  >
-                    查看帖子 ↗
-                  </a>
+                  {postUrl(c.media_id) ? (
+                    <a
+                      href={postUrl(c.media_id)!}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs"
+                      style={{ color: 'var(--accent)' }}
+                    >
+                      查看帖子 ↗
+                    </a>
+                  ) : (
+                    <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                      帖子 ID: {c.media_id || '未知'}
+                    </span>
+                  )}
                   <span className="flex-1" />
                   <button
-                    className="btn"
-                    onClick={() => {
-                      setDmTarget(c);
-                      setDmText('');
-                    }}
+                    className="btn-primary"
+                    onClick={() => onOpenConversation(c.id)}
                     style={{ fontSize: 11, padding: '3px 8px' }}
                   >
-                    手动 DM
+                    在私信对话回复
                   </button>
                   {!c.is_read && (
                     <button
@@ -213,70 +244,6 @@ export default function Comments() {
         )}
       </div>
 
-      {dmTarget && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-          }}
-          onClick={() => setDmTarget(null)}
-        >
-          <div
-            style={{
-              background: 'var(--bg-primary)',
-              borderRadius: 12,
-              width: 480,
-              maxWidth: '90vw',
-              padding: 20,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-              手动 DM 给 @{dmTarget.username || dmTarget.user_id}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 12 }}>
-              评论内容：{dmTarget.text}
-            </div>
-            <textarea
-              value={dmText}
-              onChange={(e) => setDmText(e.target.value)}
-              placeholder="输入要发送的私信..."
-              rows={5}
-              style={{
-                width: '100%',
-                fontSize: 13,
-                padding: '8px 10px',
-                border: '0.5px solid var(--border-soft)',
-                borderRadius: 8,
-                background: 'var(--bg-secondary)',
-                color: 'var(--text-primary)',
-                resize: 'vertical',
-                outline: 'none',
-                fontFamily: 'var(--font)',
-                lineHeight: 1.5,
-              }}
-            />
-            <div className="flex gap-8 mt-8" style={{ justifyContent: 'flex-end' }}>
-              <button className="btn" onClick={() => setDmTarget(null)} style={{ fontSize: 12, padding: '5px 12px' }}>
-                取消
-              </button>
-              <button
-                className="btn-primary"
-                onClick={onSendDm}
-                disabled={sending || !dmText.trim()}
-                style={{ fontSize: 12, padding: '5px 12px', opacity: sending || !dmText.trim() ? 0.5 : 1 }}
-              >
-                {sending ? '发送中...' : '发送'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
