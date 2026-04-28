@@ -38,16 +38,3 @@ class SettingsUpdate(BaseModel):
     welcome_message_enabled: bool | None = None
     welcome_message_text: str | None = None
     default_conversation_mode: str | None = None
-
-
-class SimulateRequest(BaseModel):
-    comment_text: str
-    username: str = "test_user"
-
-
-class SimulateResponse(BaseModel):
-    triggered: bool
-    matched_rule: str | None = None
-    public_reply: str | None = None
-    dm_content: str | None = None
-    conversation_id: int | None = None

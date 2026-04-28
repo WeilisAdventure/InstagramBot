@@ -77,10 +77,6 @@ export const translateMessage = (convId: number, text: string) =>
 export const generateAIReply = (convId: number, prompt?: string) =>
   request<{ reply: string }>(`/conversations/${convId}/generate-reply`, { method: 'POST', body: JSON.stringify({ prompt: prompt || '' }) });
 
-// Simulate
-export const simulateComment = (comment_text: string, username?: string) =>
-  request<import('../types').SimulateResult>('/simulate', { method: 'POST', body: JSON.stringify({ comment_text, username }) });
-
 // Settings
 export const getSettings = () => request<import('../types').Settings>('/settings');
 export const updateSettings = (data: Partial<import('../types').Settings>) =>

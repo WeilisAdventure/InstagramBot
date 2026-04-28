@@ -18,7 +18,6 @@ const sections = [
     { path: '/conversations', label: '私信对话', dotColor: '#22c55e' },
     { path: '/comments', label: '评论收件箱', dotColor: '#dc2626', badgeKey: 'comments' as const },
     { path: '/rules', label: '评论触发规则', dotColor: '#185FA5' },
-    { path: '/simulate', label: '模拟测试', dotColor: '#534AB7' },
   ]},
   { group: '配置', items: [
     { path: '/settings', label: '系统设置', dotColor: '#9ca3af' },

@@ -47,10 +47,9 @@ export default function Dashboard() {
         <StatCard value={stats?.comment_triggers ?? '-'} label="评论触发次数" />
       </div>
 
-      {/* Feature Cards 2x2 */}
+      {/* Feature Cards */}
       <div className="grid-2">
         <FeatureCard icon="💬" name="评论触发规则" desc="用户评论含关键词 → 自动发送私信 + 可选公开回复评论" onClick={() => navigate('/rules')} />
-        <FeatureCard icon="🧪" name="模拟测试" desc="输入评论内容，实时预览触发结果，验证规则是否正确" onClick={() => navigate('/simulate')} />
         <FeatureCard icon="✉️" name="私信对话管理" desc="AI 回复 / 人工回复随时切换，英中翻译，AI 优化输入" onClick={() => navigate('/conversations')} />
         <FeatureCard icon="📥" name="评论收件箱" desc="收集所有进店评论，触发关闭也能看到，并可一键转私信回复" onClick={() => navigate('/comments')} />
       </div>

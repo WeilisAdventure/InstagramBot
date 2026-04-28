@@ -3,7 +3,6 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Rules from './pages/Rules';
-import Simulate from './pages/Simulate';
 import Conversations from './pages/Conversations';
 import Comments from './pages/Comments';
 import Settings from './pages/Settings';
@@ -22,7 +21,6 @@ export default function App() {
         <Route element={<RequireAuth><Layout /></RequireAuth>}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/rules" element={<Rules />} />
-          <Route path="/simulate" element={<Simulate />} />
           <Route path="/conversations" element={<Conversations />} />
           <Route path="/comments" element={<Comments />} />
           <Route path="/settings" element={<Settings />} />

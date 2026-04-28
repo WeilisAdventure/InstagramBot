@@ -107,14 +107,6 @@ export interface CommentEventList {
   total: number;
 }
 
-export interface SimulateResult {
-  triggered: boolean;
-  matched_rule: string | null;
-  public_reply: string | null;
-  dm_content: string | null;
-  conversation_id: number | null;
-}
-
 export interface AssistResult {
   original: string;
   improved: string;
