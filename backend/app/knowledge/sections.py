@@ -29,8 +29,13 @@ _INTENTS: dict[str, list[str]] = {
         "deliver to", "ship to", "shipping to", "send to", "service area",
         "available in", "cover", "coverage", "do you go", "do you ship",
         "do you deliver", "service", "postal", "fsa", "zone",
+        # City names that customers may name without an action verb
+        "toronto", "gta", "hamilton", "burlington", "kitchener", "waterloo",
+        "guelph", "mississauga", "vaughan", "oakville", "pickering", "ajax",
+        "whitby", "oshawa", "stouffville", "brampton", "calgary", "alberta",
         # Chinese
         "送到", "送货", "覆盖", "范围", "服务区", "区域", "能送", "可以送", "邮编",
+        "多伦多", "卡尔加里", "汉密尔顿", "密西沙加",
     ],
     "sizes": [
         # English

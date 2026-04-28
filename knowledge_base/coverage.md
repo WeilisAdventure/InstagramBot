@@ -40,6 +40,23 @@ FSA: L7L, L7M, L7N, L7R, L7S, L7T, L8B, L8H, L8K, L8L, L8M, L8N, L8P, L8R, L8S, 
 Cities: Kitchener, Waterloo, Guelph
 FSA: N0B, N1E, N1G, N1H, N1K, N1L, N2A, N2B, N2C, N2E, N2G, N2H, N2J, N2K, N2L, N2M, N2N, N2P, N2R, N2T, N2V
 
+## 2b. Calgary (separate service, details TBC)
+
+FleetNow ALSO provides same-day delivery service in **Calgary, AB**. The
+exact FSA coverage, pricing tiers, pickup schedule, and cutoff times for
+the Calgary office are still being finalized in this knowledge base.
+
+When a customer asks about Calgary or any T-prefix postal code:
+- Confirm we DO serve Calgary — do NOT say it is out of range, and do NOT
+  apply the GTA pricing tables (T-postal codes have their own structure).
+- Do NOT quote a specific price, schedule, or postal-code coverage — the
+  details aren't in this knowledge base yet, so guessing risks misquoting.
+- Direct the customer to confirm specifics with us: "Yes, we offer
+  same-day delivery in Calgary. For exact coverage and pricing, please
+  call +1 416-649-6588 or visit www.fleetnow.ca."
+- If the customer is asking conceptually (e.g. "do you cover Calgary?"),
+  answer "yes" succinctly without forcing a phone call upfront.
+
 ## 3. Non-Serviceable Areas
 
 NOT covered by FleetNow:
@@ -58,5 +75,6 @@ When a customer asks about a city or postal code:
 3. **Zone A or B** → mention OPTIONAL paid Afternoon Express (+$5 / +$8); evening is the default.
 4. **Standard Evening Only** → daily evening delivery (17:30-22:00).
 5. **Scheduled Service** → state the specific days, window 18:30-23:00, and surcharge (+$2 / +$4).
-6. **Non-Serviceable** → politely decline, direct to www.fleetnow.ca.
-7. **Not in any list** → fallback: "I'm sorry, I cannot answer this. Please call +1 416-649-6588 for further assistance."
+6. **Calgary / T-prefix postal code** → confirm we serve Calgary; for specifics direct to +1 416-649-6588 or www.fleetnow.ca (do NOT quote GTA prices for Calgary).
+7. **Non-Serviceable** → politely decline, direct to www.fleetnow.ca.
+8. **Not in any list** → fallback: "I'm sorry, I cannot answer this. Please call +1 416-649-6588 for further assistance."
