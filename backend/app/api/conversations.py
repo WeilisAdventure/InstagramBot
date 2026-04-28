@@ -274,6 +274,12 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
             "(A.C.)，FleetNow Delivery 的 Manager。然后询问对方是个人还是商家配送"
             "（价格按月单量不同），并强调我们的同城无距离限制同日达统一价服务。"
         )
+    else:
+        final_extra += (
+            "\n\n这是后续消息（不是首次）。**严禁重复 conversation history 里你已经"
+            "说过的内容**：不要再自我介绍、不要再罗列已提到的优势、不要再问已经问过"
+            "的限定问题。仔细看历史记录，仅针对客户的最新消息作出回应或推进对话。"
+        )
     if extra_prompt:
         final_extra += f"\n\n{extra_prompt}"
 
