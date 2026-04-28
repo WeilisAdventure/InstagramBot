@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.conversation import Conversation, Message
-from app.models.knowledge import KnowledgeEntry
 from app.models.settings import SystemSettings
 from app.instagram.base import IncomingMessage, IncomingComment, InstagramClient
 from app.ai.base import AIProvider
@@ -67,13 +66,6 @@ class MessageHandler:
         db.add(conv)
         await db.flush()
         return conv, True
-
-    async def _load_knowledge_entries(self, db: AsyncSession) -> list[dict]:
-        result = await db.execute(
-            select(KnowledgeEntry).where(KnowledgeEntry.is_active == True)
-        )
-        entries = result.scalars().all()
-        return [{"question": e.question, "answer": e.answer} for e in entries]
 
     async def _get_conversation_history(self, db: AsyncSession, conv_id: int, limit: int = 10) -> list[dict]:
         result = await db.execute(
@@ -180,7 +172,6 @@ class MessageHandler:
             self.ai.model = current_model
 
         async with async_session() as db:
-            knowledge = await self._load_knowledge_entries(db)
             history = await self._get_conversation_history(db, conv_id)
             from app.models.preference import ManagerPreference
             pref_q = await db.execute(
@@ -188,11 +179,9 @@ class MessageHandler:
             )
             preferences = [p.content for p in pref_q.scalars().all()]
 
-        # Filter knowledge to most relevant entries to stay under token limits
-        from app.knowledge.relevance import filter_relevant
-        filtered = await filter_relevant(knowledge, msg.text or "", ai=self.ai)
+        # Knowledge now lives entirely in markdown sections routed by intent
+        # inside build_system_prompt; no DB Q&A filter needed.
         self.ai.reload_knowledge(
-            filtered,
             preferences=preferences,
             user_message=msg.text or "",
         )

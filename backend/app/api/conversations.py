@@ -200,12 +200,6 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     messages = msg_result.scalars().all()
     history = [{"role": m.role, "content": m.content} for m in messages if m.role in ("user", "assistant") and m.content and m.content.strip()]
 
-    # Load knowledge
-    from app.models.knowledge import KnowledgeEntry
-    k_result = await db.execute(select(KnowledgeEntry).where(KnowledgeEntry.is_active == True))
-    entries = k_result.scalars().all()
-    knowledge = [{"question": e.question, "answer": e.answer} for e in entries]
-
     ai = request.app.state.ai_provider
     # Sync model with current setting
     from app.models.settings import SystemSettings
@@ -251,11 +245,9 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     )
     preferences = [p.content for p in pref_result.scalars().all()]
 
-    # Filter knowledge to most relevant entries to stay under token limits
-    from app.knowledge.relevance import filter_relevant
-    filtered = await filter_relevant(knowledge, last_user_msg, ai=ai)
+    # Knowledge now lives entirely in markdown sections routed by intent
+    # inside build_system_prompt; no DB Q&A filter needed.
     ai.reload_knowledge(
-        filtered,
         preferences=preferences,
         user_message=last_user_msg,
     )

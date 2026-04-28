@@ -23,14 +23,12 @@ def _load_base_prompt() -> str:
 
 
 def build_system_prompt(
-    extra_qa: list[dict] | None = None,
     preferences: list[str] | None = None,
     user_message: str = "",
 ) -> str:
     """Build the full system prompt.
 
     Args:
-        extra_qa: filtered knowledge-base Q&A entries (legacy table).
         preferences: long-term manager preferences applied to all replies.
         user_message: the customer's latest message; used to route which
             knowledge sections (pricing / coverage / sizes / schedule) are
@@ -57,11 +55,5 @@ def build_system_prompt(
                 f"_(Loaded sections: {', '.join(sections)})_\n\n"
                 f"{section_text}"
             )
-
-    if extra_qa:
-        qa_text = "\n\n## Additional Q&A\n\n"
-        for entry in extra_qa:
-            qa_text += f"Q: {entry['question']}\nA: {entry['answer']}\n\n"
-        prompt += qa_text
 
     return prompt

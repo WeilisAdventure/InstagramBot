@@ -6,14 +6,13 @@ class AIProvider(ABC):
 
     def reload_knowledge(
         self,
-        extra_qa: list[dict] | None = None,
         preferences: list[str] | None = None,
         user_message: str = "",
     ):
-        """Rebuild system prompt with filtered knowledge, manager preferences,
-        and only the knowledge-base sections relevant to *user_message*."""
+        """Rebuild system prompt with manager preferences and only the
+        knowledge-base sections relevant to *user_message*."""
         from app.ai.prompt import build_system_prompt
-        self.system_prompt = build_system_prompt(extra_qa, preferences, user_message)
+        self.system_prompt = build_system_prompt(preferences, user_message)
 
     @abstractmethod
     async def generate_reply(
