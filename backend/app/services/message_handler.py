@@ -180,10 +180,12 @@ class MessageHandler:
             preferences = [p.content for p in pref_q.scalars().all()]
 
         # Knowledge now lives entirely in markdown sections routed by intent
-        # inside build_system_prompt; no DB Q&A filter needed.
+        # inside build_system_prompt; no DB Q&A filter needed. History is
+        # passed so short follow-ups ("yes", "M4W") inherit the topic.
         self.ai.reload_knowledge(
             preferences=preferences,
             user_message=msg.text or "",
+            history=history,
         )
 
         # First-message detection: history excluding the just-saved user msg

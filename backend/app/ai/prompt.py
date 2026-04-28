@@ -25,6 +25,7 @@ def _load_base_prompt() -> str:
 def build_system_prompt(
     preferences: list[str] | None = None,
     user_message: str = "",
+    history: list[dict] | None = None,
 ) -> str:
     """Build the full system prompt.
 
@@ -34,6 +35,10 @@ def build_system_prompt(
             knowledge sections (pricing / coverage / sizes / schedule) are
             injected, so we don't burn 6-8K tokens on every call when only
             one section is actually relevant.
+        history: recent conversation messages (chronological list of
+            {role, content}); the last 2 are joined with the current
+            message for routing, so short follow-ups like "yes" still
+            inherit the topic from the prior turn.
     """
     prompt = _load_base_prompt()
 
@@ -46,7 +51,7 @@ def build_system_prompt(
                 "override any conflicting guidance below.\n\n" + rules
             )
 
-    sections = select_relevant_sections(user_message)
+    sections = select_relevant_sections(user_message, history)
     if sections:
         section_text = load_sections(sections)
         if section_text:

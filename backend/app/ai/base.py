@@ -8,11 +8,13 @@ class AIProvider(ABC):
         self,
         preferences: list[str] | None = None,
         user_message: str = "",
+        history: list[dict] | None = None,
     ):
         """Rebuild system prompt with manager preferences and only the
-        knowledge-base sections relevant to *user_message*."""
+        knowledge-base sections relevant to *user_message* (plus the last
+        couple of *history* turns, so short follow-ups inherit topic)."""
         from app.ai.prompt import build_system_prompt
-        self.system_prompt = build_system_prompt(preferences, user_message)
+        self.system_prompt = build_system_prompt(preferences, user_message, history)
 
     @abstractmethod
     async def generate_reply(

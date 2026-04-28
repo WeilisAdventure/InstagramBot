@@ -54,19 +54,41 @@ _INTENTS: dict[str, list[str]] = {
 }
 
 
-def select_relevant_sections(message: str) -> list[str]:
-    """Return the section names whose keywords match *message*.
+def select_relevant_sections(
+    message: str,
+    history: list[dict] | None = None,
+    history_window: int = 2,
+) -> list[str]:
+    """Return the section names whose keywords match the current *message*
+    plus the last *history_window* messages of the conversation.
 
-    A postal-code mention always pulls in pricing + coverage because the
-    customer is almost certainly asking "can you ship there / how much".
+    Including a small slice of history avoids the dead-route case where the
+    customer follows up with "yes", "how about that", or just "M4W" — alone
+    those wouldn't trigger any section, but combined with the prior turn
+    ("Do you deliver to Hamilton?", "Sure, what's the postal?") they do.
+
+    A postal-code mention anywhere in the joined text always pulls in
+    pricing + coverage because the customer is almost certainly asking
+    "can you ship there / how much".
     """
-    if not message:
+    parts: list[str] = []
+    if history:
+        for h in history[-history_window:]:
+            content = (h.get("content") or "").strip()
+            if content:
+                parts.append(content)
+    if message:
+        parts.append(message)
+
+    if not parts:
         return []
-    text_lower = message.lower()
+
+    text = "\n".join(parts)
+    text_lower = text.lower()
 
     sections: set[str] = set()
 
-    if _POSTAL_RE.search(message):
+    if _POSTAL_RE.search(text):
         sections.update({"pricing", "coverage"})
 
     for section, keywords in _INTENTS.items():

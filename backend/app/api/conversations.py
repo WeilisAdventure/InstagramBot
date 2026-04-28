@@ -246,10 +246,12 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     preferences = [p.content for p in pref_result.scalars().all()]
 
     # Knowledge now lives entirely in markdown sections routed by intent
-    # inside build_system_prompt; no DB Q&A filter needed.
+    # inside build_system_prompt; no DB Q&A filter needed. History is
+    # passed so short follow-ups ("yes", "M4W") inherit the topic.
     ai.reload_knowledge(
         preferences=preferences,
         user_message=last_user_msg,
+        history=history,
     )
 
     # First-message detection: history excluding the current user msg is empty
