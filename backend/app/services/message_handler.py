@@ -191,7 +191,11 @@ class MessageHandler:
         # Filter knowledge to most relevant entries to stay under token limits
         from app.knowledge.relevance import filter_relevant
         filtered = await filter_relevant(knowledge, msg.text or "", ai=self.ai)
-        self.ai.reload_knowledge(filtered, preferences=preferences)
+        self.ai.reload_knowledge(
+            filtered,
+            preferences=preferences,
+            user_message=msg.text or "",
+        )
 
         # First-message detection: history excluding the just-saved user msg
         prior = [m for m in history if not (m["role"] == "user" and m["content"] == (msg.text or ""))]

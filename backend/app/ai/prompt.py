@@ -1,7 +1,7 @@
 """Shared system prompt for all AI providers."""
 
-from pathlib import Path
-from app.knowledge.loader import load_knowledge_base, KNOWLEDGE_DIR
+from app.knowledge.loader import KNOWLEDGE_DIR
+from app.knowledge.sections import load_sections, select_relevant_sections
 
 SYSTEM_PROMPT_FILE = KNOWLEDGE_DIR / "system_prompt.md"
 
@@ -25,14 +25,20 @@ def _load_base_prompt() -> str:
 def build_system_prompt(
     extra_qa: list[dict] | None = None,
     preferences: list[str] | None = None,
+    user_message: str = "",
 ) -> str:
     """Build the full system prompt.
 
     Args:
-        extra_qa: filtered knowledge base Q&A entries.
-        preferences: long-term manager preferences to apply to all replies.
+        extra_qa: filtered knowledge-base Q&A entries (legacy table).
+        preferences: long-term manager preferences applied to all replies.
+        user_message: the customer's latest message; used to route which
+            knowledge sections (pricing / coverage / sizes / schedule) are
+            injected, so we don't burn 6-8K tokens on every call when only
+            one section is actually relevant.
     """
     prompt = _load_base_prompt()
+
     if preferences:
         rules = "\n".join(f"- {p}" for p in preferences if p.strip())
         if rules:
@@ -41,12 +47,21 @@ def build_system_prompt(
                 "These are persistent style rules set by the manager. They "
                 "override any conflicting guidance below.\n\n" + rules
             )
-    knowledge = load_knowledge_base()
-    if knowledge:
-        prompt += f"\n\n## Knowledge Base\n\n{knowledge}"
+
+    sections = select_relevant_sections(user_message)
+    if sections:
+        section_text = load_sections(sections)
+        if section_text:
+            prompt += (
+                "\n\n## Reference Knowledge\n\n"
+                f"_(Loaded sections: {', '.join(sections)})_\n\n"
+                f"{section_text}"
+            )
+
     if extra_qa:
         qa_text = "\n\n## Additional Q&A\n\n"
         for entry in extra_qa:
             qa_text += f"Q: {entry['question']}\nA: {entry['answer']}\n\n"
         prompt += qa_text
+
     return prompt

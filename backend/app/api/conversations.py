@@ -254,7 +254,11 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     # Filter knowledge to most relevant entries to stay under token limits
     from app.knowledge.relevance import filter_relevant
     filtered = await filter_relevant(knowledge, last_user_msg, ai=ai)
-    ai.reload_knowledge(filtered, preferences=preferences)
+    ai.reload_knowledge(
+        filtered,
+        preferences=preferences,
+        user_message=last_user_msg,
+    )
 
     # First-message detection: history excluding the current user msg is empty
     prior = [m for m in history if not (m["role"] == "user" and m["content"] == last_user_msg)]
