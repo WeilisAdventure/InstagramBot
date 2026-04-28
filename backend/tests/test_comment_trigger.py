@@ -22,6 +22,13 @@ def test_match_case_insensitive():
 
 
 def test_render_template():
+    # Single-brace, both name keys
     assert render_template("Hi {name}!", name="John") == "Hi John!"
+    assert render_template("Hi {username}!", name="John") == "Hi John!"
+    # Double-brace (Mustache style)
+    assert render_template("Hi {{username}}!", name="John") == "Hi John!"
+    assert render_template("Hi {{name}}, ready?", username="Mei") == "Hi Mei, ready?"
+    # No placeholder
     assert render_template("No placeholders") == "No placeholders"
+    # Unknown placeholder is left alone, no exception
     assert render_template("Missing {unknown}", name="John") == "Missing {unknown}"

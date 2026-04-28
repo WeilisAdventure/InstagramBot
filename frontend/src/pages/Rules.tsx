@@ -119,7 +119,7 @@ export default function Rules() {
                 rows={2}
                 value={editing.public_reply_template}
                 onChange={(e) => setEditing({ ...editing, public_reply_template: e.target.value })}
-                placeholder="评论下方的公开回复，用 {name} 代替用户名"
+                placeholder="评论下方的公开回复，用 {{username}} 代替用户名"
               />
             </div>
 
@@ -130,7 +130,7 @@ export default function Rules() {
                 rows={2}
                 value={editing.dm_template}
                 onChange={(e) => setEditing({ ...editing, dm_template: e.target.value })}
-                placeholder="发送给评论者的私信，用 {name} 代替用户名"
+                placeholder="发送给评论者的私信，用 {{username}} 代替用户名"
               />
             </div>
 

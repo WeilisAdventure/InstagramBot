@@ -40,8 +40,30 @@ async def find_matching_rule(
 
 
 def render_template(template: str, **kwargs) -> str:
-    """Render a template string with placeholders like {name}."""
-    try:
-        return template.format(**kwargs)
-    except KeyError:
+    """Render a template that may use any of these placeholder styles:
+
+    - ``{{username}}`` / ``{{name}}``   (Mustache-style, double braces)
+    - ``{username}``   / ``{name}``     (Python-format-style, single braces)
+
+    Both ``name`` and ``username`` are accepted as variable names so that
+    the UI hint ("用 {name} 代替用户名") and a manager who naturally types
+    ``{{username}}`` both work. Unknown placeholders are left untouched.
+    """
+    if not template:
         return template
+    # Caller usually passes ``name=...``; mirror it as ``username`` (and
+    # vice versa) so either placeholder name resolves.
+    if "name" in kwargs and "username" not in kwargs:
+        kwargs["username"] = kwargs["name"]
+    if "username" in kwargs and "name" not in kwargs:
+        kwargs["name"] = kwargs["username"]
+
+    out = template
+    for key, value in kwargs.items():
+        if value is None:
+            continue
+        s = str(value)
+        # Double-brace first (more specific), then single-brace.
+        out = out.replace("{{" + key + "}}", s)
+        out = out.replace("{" + key + "}", s)
+    return out
