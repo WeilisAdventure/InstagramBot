@@ -277,8 +277,13 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     else:
         final_extra += (
             "\n\n这是后续消息（不是首次）。**严禁重复 conversation history 里你已经"
-            "说过的内容**：不要再自我介绍、不要再罗列已提到的优势、不要再问已经问过"
-            "的限定问题。仔细看历史记录，仅针对客户的最新消息作出回应或推进对话。"
+            "说过的内容**：\n"
+            "- 不要再自我介绍\n"
+            "- 不要再罗列已提到的优势（包括但不限于：统一费率、同日达、无距离限制、专业服务）。"
+            "如果历史里已经出现过 bullet 列表的优势条目（任何语言版本），本条回复**绝对不能"
+            "再写第二个 bullet 列表的优势**，改用普通句子简短回应即可。\n"
+            "- 不要再问已经问过的限定问题\n"
+            "仔细看历史记录，仅针对客户的最新消息作出回应或推进对话。"
         )
     if extra_prompt:
         final_extra += f"\n\n{extra_prompt}"
