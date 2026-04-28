@@ -21,7 +21,6 @@ const sections = [
     { path: '/simulate', label: '模拟测试', dotColor: '#534AB7' },
   ]},
   { group: '配置', items: [
-    { path: '/knowledge', label: '知识库', dotColor: '#d97706' },
     { path: '/settings', label: '系统设置', dotColor: '#9ca3af' },
   ]},
 ];

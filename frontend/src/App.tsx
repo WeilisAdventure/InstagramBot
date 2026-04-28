@@ -6,7 +6,6 @@ import Rules from './pages/Rules';
 import Simulate from './pages/Simulate';
 import Conversations from './pages/Conversations';
 import Comments from './pages/Comments';
-import Knowledge from './pages/Knowledge';
 import Settings from './pages/Settings';
 import { isLoggedIn } from './api/client';
 
@@ -26,7 +25,6 @@ export default function App() {
           <Route path="/simulate" element={<Simulate />} />
           <Route path="/conversations" element={<Conversations />} />
           <Route path="/comments" element={<Comments />} />
-          <Route path="/knowledge" element={<Knowledge />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>

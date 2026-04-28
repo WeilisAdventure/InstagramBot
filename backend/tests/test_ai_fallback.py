@@ -19,7 +19,7 @@ class FailingAIProvider(AIProvider):
     async def translate_message(self, text):
         return {"original": text, "translated": text, "source_lang": "en"}
 
-    def reload_knowledge(self, extra_qa=None):
+    def reload_knowledge(self, preferences=None, user_message="", history=None):
         pass
 
 
@@ -34,7 +34,7 @@ class CannotAnswerAIProvider(AIProvider):
     async def translate_message(self, text):
         return {"original": text, "translated": text, "source_lang": "en"}
 
-    def reload_knowledge(self, extra_qa=None):
+    def reload_knowledge(self, preferences=None, user_message="", history=None):
         pass
 
 
@@ -49,7 +49,7 @@ class NormalAIProvider(AIProvider):
     async def translate_message(self, text):
         return {"original": text, "translated": text, "source_lang": "en"}
 
-    def reload_knowledge(self, extra_qa=None):
+    def reload_knowledge(self, preferences=None, user_message="", history=None):
         pass
 
 

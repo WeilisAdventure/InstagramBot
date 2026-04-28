@@ -9,7 +9,7 @@ from app.ai.factory import create_ai_provider
 from app.instagram.factory import create_instagram_client
 from app.services.message_handler import MessageHandler
 from app.services.translator import TranslatorService
-from app.api import auth, dashboard, rules, simulate, conversations, knowledge, preferences, comments
+from app.api import auth, dashboard, rules, simulate, conversations, preferences, comments
 from app.api import settings as settings_api
 from app.webhook.router import router as webhook_router
 
@@ -86,7 +86,6 @@ app.include_router(dashboard.router)
 app.include_router(rules.router)
 app.include_router(simulate.router)
 app.include_router(conversations.router)
-app.include_router(knowledge.router)
 app.include_router(settings_api.router)
 app.include_router(preferences.router)
 app.include_router(comments.router)

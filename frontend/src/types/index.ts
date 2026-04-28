@@ -22,15 +22,6 @@ export interface RuleCreate {
   is_active?: boolean;
 }
 
-export interface KnowledgeEntry {
-  id: number;
-  question: string;
-  answer: string;
-  category: string;
-  is_active: boolean;
-  created_at: string;
-}
-
 export interface Message {
   id: number;
   conversation_id: number;

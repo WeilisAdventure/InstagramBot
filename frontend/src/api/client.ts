@@ -63,35 +63,6 @@ export const updateRule = (id: number, data: Partial<import('../types').RuleCrea
 export const deleteRule = (id: number) =>
   request<void>(`/rules/${id}`, { method: 'DELETE' });
 
-// Knowledge
-export const getKnowledge = () => request<import('../types').KnowledgeEntry[]>('/knowledge');
-export const createKnowledge = (data: { question: string; answer: string; category?: string }) =>
-  request<import('../types').KnowledgeEntry>('/knowledge', { method: 'POST', body: JSON.stringify(data) });
-export const updateKnowledge = (id: number, data: Partial<{ question: string; answer: string; category: string; is_active: boolean }>) =>
-  request<import('../types').KnowledgeEntry>(`/knowledge/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
-export const deleteKnowledge = (id: number) =>
-  request<void>(`/knowledge/${id}`, { method: 'DELETE' });
-export const deleteAllKnowledge = () =>
-  request<void>(`/knowledge`, { method: 'DELETE' });
-export const uploadKnowledgeFile = async (file: File): Promise<import('../types').KnowledgeEntry[]> => {
-  const form = new FormData();
-  form.append('file', file);
-  const token = getToken();
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${BASE}/knowledge/upload`, { method: 'POST', body: form, headers });
-  if (res.status === 401) {
-    localStorage.removeItem('token');
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
-  }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Upload failed: ${res.status}`);
-  }
-  return res.json();
-};
-
 // Conversations
 export const getConversations = () => request<import('../types').Conversation[]>('/conversations');
 export const getConversation = (id: number) => request<import('../types').ConversationDetail>(`/conversations/${id}`);
