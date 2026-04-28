@@ -14,28 +14,55 @@ from app.security import verify_token
 router = APIRouter(prefix="/api/conversations", tags=["conversations"], dependencies=[Depends(verify_token)])
 
 
+# In-memory cache: ig_user_id -> unix timestamp of last failed lookup attempt.
+# We skip retrying the same user for _PROFILE_RETRY_COOLDOWN seconds so a dead
+# token (or any user that consistently 400s on Graph API) doesn't trigger a
+# lookup storm on every conversations-list poll.
+_PROFILE_LOOKUP_FAIL_CACHE: dict[str, float] = {}
+_PROFILE_RETRY_COOLDOWN = 30 * 60  # 30 minutes
+
+
 @router.get("", response_model=list[ConversationResponse])
 async def list_conversations(request: Request, db: AsyncSession = Depends(get_db)):
+    import time
+
     result = await db.execute(
         select(Conversation).order_by(Conversation.updated_at.desc())
     )
     convs = result.scalars().all()
 
-    # Lazy-load missing profile pics / usernames via IG API
+    # Lazy-load missing profile pics / usernames via IG API.
+    # Only when the IG client is currently CONNECTED (otherwise the token is
+    # dead and every call would 400 — wait until the manager refreshes it).
     ig_client = getattr(request.app.state, "ig_client", None)
-    if ig_client and hasattr(ig_client, "get_user_profile"):
+    ig_connected = bool(ig_client and getattr(ig_client, "connected", False))
+    if ig_connected and hasattr(ig_client, "get_user_profile"):
+        now = time.time()
+        any_updated = False
         for conv in convs:
-            if conv.ig_user_id and (not conv.ig_profile_pic or not conv.ig_username):
-                try:
-                    profile = await ig_client.get_user_profile(conv.ig_user_id)
-                    if profile:
-                        if not conv.ig_username and profile.get("username"):
-                            conv.ig_username = profile["username"]
-                        if not conv.ig_profile_pic and profile.get("profile_pic"):
-                            conv.ig_profile_pic = profile["profile_pic"]
-                except Exception:
-                    pass
-        await db.commit()
+            if not conv.ig_user_id:
+                continue
+            if conv.ig_profile_pic and conv.ig_username:
+                continue
+            last_fail = _PROFILE_LOOKUP_FAIL_CACHE.get(conv.ig_user_id, 0)
+            if now - last_fail < _PROFILE_RETRY_COOLDOWN:
+                continue
+            try:
+                profile = await ig_client.get_user_profile(conv.ig_user_id)
+            except Exception:
+                profile = None
+            if profile and (profile.get("username") or profile.get("profile_pic")):
+                if not conv.ig_username and profile.get("username"):
+                    conv.ig_username = profile["username"]
+                    any_updated = True
+                if not conv.ig_profile_pic and profile.get("profile_pic"):
+                    conv.ig_profile_pic = profile["profile_pic"]
+                    any_updated = True
+                _PROFILE_LOOKUP_FAIL_CACHE.pop(conv.ig_user_id, None)
+            else:
+                _PROFILE_LOOKUP_FAIL_CACHE[conv.ig_user_id] = now
+        if any_updated:
+            await db.commit()
 
     response = []
     for conv in convs:
