@@ -76,13 +76,13 @@ function timeAgo(dateStr: string) {
  * the panel guarantees that the panel never overflows its parent and that
  * the bottom button row always stays inside the viewport.
  */
-function useResizable(initial: number, storageKey?: string) {
+function useResizable(initial: number, storageKey?: string, minPx: number = 30) {
   const [height, setHeight] = useState<number>(() => {
     if (storageKey && typeof window !== 'undefined') {
       const raw = window.localStorage.getItem(storageKey);
       if (raw) {
         const n = parseInt(raw, 10);
-        if (!isNaN(n) && n >= 80) return n;
+        if (!isNaN(n) && n >= minPx) return n;
       }
     }
     return initial;
@@ -95,7 +95,7 @@ function useResizable(initial: number, storageKey?: string) {
 
     const onMove = (m: MouseEvent) => {
       const delta = startY - m.clientY;
-      const next = Math.max(80, startH + delta);
+      const next = Math.max(minPx, startH + delta);
       setHeight(next);
       if (storageKey) {
         try {
@@ -119,13 +119,32 @@ function useResizable(initial: number, storageKey?: string) {
 }
 
 const dragHandleStyle: React.CSSProperties = {
-  height: 8,
+  height: 14,
   cursor: 'ns-resize',
-  background:
-    'linear-gradient(to bottom, transparent 0%, transparent 40%, var(--border-soft) 40%, var(--border-soft) 60%, transparent 60%)',
+  background: 'var(--border-soft)',
   margin: '4px 0',
-  borderRadius: 2,
+  borderRadius: 3,
   flexShrink: 0,
+  position: 'relative',
+};
+
+// Inner splitter — more prominent so it's obviously different from the
+// outer panel-resize handle and easy to grab.
+const innerSplitterStyle: React.CSSProperties = {
+  height: 16,
+  cursor: 'ns-resize',
+  background: 'var(--accent, #185FA5)',
+  opacity: 0.18,
+  margin: '6px 0',
+  borderRadius: 4,
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 10,
+  color: 'var(--accent, #185FA5)',
+  fontWeight: 600,
+  userSelect: 'none',
 };
 
 export default function Conversations() {
@@ -682,10 +701,12 @@ export default function Conversations() {
 
                   {/* Inner drag — redistribute between prompt and preview */}
                   <div
-                    style={{ ...dragHandleStyle, flexShrink: 0 }}
+                    style={innerSplitterStyle}
                     onMouseDown={aiPromptSize.startDrag}
-                    title="拖动调整提示词区与预览区的比例"
-                  />
+                    title="上下拖动：调整提示词区与预览区的比例"
+                  >
+                    ⇅ 拖动调整两窗口比例
+                  </div>
 
                   {/* Preview section — label + scroll/edit area */}
                   <div
