@@ -71,74 +71,22 @@ function timeAgo(dateStr: string) {
 // pull up to grow, push down to shrink. Native browser resize is disabled
 // (resize: 'none') so the corner triangle never disappears under text.
 /**
- * Drag-to-resize hook. The cap is computed dynamically from the textarea's
- * own ref, so the textarea CAN'T grow taller than the room actually
- * available to it inside the surrounding flex column. The button row
- * below the textarea therefore always stays inside the viewport.
- *
- * Heuristic: we look at the textarea's ancestor that has the largest
- * height (typically the right-pane), measure its inner height, subtract
- * the height of the textarea's parent excluding the textarea (i.e. the
- * non-textarea siblings), and use whatever is left as the cap.
+ * Drag-to-resize a panel. The number this returns is the panel's preferred
+ * height in px (used as flex-basis); CSS flex-shrink + min-height:0 inside
+ * the panel guarantees that the panel never overflows its parent and that
+ * the bottom button row always stays inside the viewport.
  */
 function useResizable(initial: number, storageKey?: string) {
-  const ref = useRef<HTMLTextAreaElement | HTMLDivElement | null>(null);
-
-  const computeMax = (): number => {
-    const node = ref.current;
-    if (!node || typeof window === 'undefined') return 500;
-    // Walk up to the nearest container that fills the viewport
-    // vertically (flex: 1 ancestor inside the right pane).
-    let container: HTMLElement | null = node.parentElement;
-    let containerH = 0;
-    while (container) {
-      const r = container.getBoundingClientRect();
-      if (r.height > containerH) {
-        containerH = r.height;
-      }
-      // Stop walking once we hit something that fills > half the viewport.
-      if (r.height >= window.innerHeight * 0.6) break;
-      container = container.parentElement;
-    }
-    // Subtract the height of siblings around our element so the cap
-    // accounts for buttons / labels / mode switch / etc.
-    const myH = node.getBoundingClientRect().height;
-    const parentRect = node.parentElement?.getBoundingClientRect();
-    const parentH = parentRect?.height ?? myH;
-    // Other content next to/around the textarea inside its closest siblings:
-    const siblingsAbove = parentH - myH;
-    // Conservative buffer for buttons and padding outside our parent:
-    const safetyBuffer = 90;
-    const cap = containerH - siblingsAbove - safetyBuffer;
-    return Math.max(80, Math.min(900, cap));
-  };
-
   const [height, setHeight] = useState<number>(() => {
-    let saved: number | null = null;
     if (storageKey && typeof window !== 'undefined') {
       const raw = window.localStorage.getItem(storageKey);
       if (raw) {
         const n = parseInt(raw, 10);
-        if (!isNaN(n) && n >= 60) saved = n;
+        if (!isNaN(n) && n >= 80) return n;
       }
     }
-    return saved ?? initial;
+    return initial;
   });
-
-  // Re-clamp on layout / window resize
-  useEffect(() => {
-    const onResize = () => {
-      setHeight((h) => Math.max(60, Math.min(computeMax(), h)));
-    };
-    window.addEventListener('resize', onResize);
-    // Initial clamp once layout settles
-    const t = setTimeout(onResize, 50);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const startDrag = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -147,8 +95,7 @@ function useResizable(initial: number, storageKey?: string) {
 
     const onMove = (m: MouseEvent) => {
       const delta = startY - m.clientY;
-      const cap = computeMax();
-      const next = Math.max(60, Math.min(cap, startH + delta));
+      const next = Math.max(80, startH + delta);
       setHeight(next);
       if (storageKey) {
         try {
@@ -168,7 +115,7 @@ function useResizable(initial: number, storageKey?: string) {
     window.addEventListener('mouseup', onUp);
   };
 
-  return { height, startDrag, ref };
+  return { height, startDrag };
 }
 
 const dragHandleStyle: React.CSSProperties = {
@@ -189,9 +136,12 @@ export default function Conversations() {
 
   // Per-textarea resize state, persisted to localStorage so size sticks
   // across page loads.
-  const aiPreviewSize = useResizable(160, 'instabot.height.aiPreview');
-  const humanInputSize = useResizable(80, 'instabot.height.humanInput');
-  const assistPreviewSize = useResizable(120, 'instabot.height.assistPreview');
+  // Heights here are PANEL heights (the entire bottom panel, drag handle to
+  // bottom button row). The textarea/preview inside the panel takes the
+  // remaining space via flex: 1 + min-height: 0; buttons are flex-shrink: 0
+  // and stay anchored to the bottom regardless of panel height.
+  const aiPreviewSize = useResizable(360, 'instabot.height.aiPanel');
+  const humanInputSize = useResizable(220, 'instabot.height.humanPanel');
 
   // True while POST /assist is in-flight; lock the assist button to
   // prevent duplicate calls.
@@ -647,15 +597,32 @@ export default function Conversations() {
               </div>
             </div>
 
-            {/* AI Mode Input — visible whenever this conv is in AI mode */}
+            {/* AI Mode Input — panel grows; button row anchored at bottom */}
             {mode === 'ai' && (
-              <div style={{ padding: '8px 16px 12px', background: 'var(--bg-primary)', flexShrink: 0 }}>
-                <div className="flex gap-8" style={{ marginBottom: 6, alignItems: 'flex-start' }}>
+              <div
+                style={{
+                  padding: '8px 16px 12px',
+                  background: 'var(--bg-primary)',
+                  flexBasis: aiPreviewSize.height,
+                  flexShrink: 1,
+                  flexGrow: 0,
+                  minHeight: 200,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{ ...dragHandleStyle, flexShrink: 0 }}
+                  onMouseDown={aiPreviewSize.startDrag}
+                  title="拖动调整面板高度"
+                />
+                <div className="flex gap-8" style={{ marginBottom: 6, alignItems: 'flex-start', flexShrink: 0 }}>
                   <textarea
                     className="flex-1"
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
-                    placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」... — 回车换行，按按钮才生成'
+                    placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」...'
                     rows={2}
                     style={{ fontSize: 12, padding: '5px 8px', resize: 'vertical', minHeight: 36, fontFamily: 'var(--font)', lineHeight: 1.5 }}
                   />
@@ -674,39 +641,35 @@ export default function Conversations() {
                     {aiReplyLoading ? '生成中...' : aiReply ? '重新生成' : '生成回复'}
                   </button>
                 </div>
-                <div className="field-label" style={{ marginBottom: 6 }}>AI 回复预览（发送前可编辑，拖上方灰条调整高度）：</div>
-                <div className="ai-preview" style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div className="ai-preview-label">AI 生成内容</div>
+                <div className="field-label" style={{ marginBottom: 6, flexShrink: 0 }}>AI 回复预览（发送前可编辑）：</div>
+                <div
+                  className="ai-preview"
+                  style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+                >
+                  <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容</div>
                   {aiReplyLoading ? (
                     <div className="text-xs" style={{ padding: '4px 0' }}>正在生成...</div>
                   ) : (
-                    <>
-                      <div
-                        style={dragHandleStyle}
-                        onMouseDown={aiPreviewSize.startDrag}
-                        title="拖动调整高度"
-                      />
-                      <textarea
-                        ref={aiPreviewSize.ref as React.RefObject<HTMLTextAreaElement>}
-                        value={aiReply}
-                        onChange={(e) => setAiReply(e.target.value)}
-                        style={{
-                          width: '100%',
-                          height: aiPreviewSize.height,
-                          border: 'none',
-                          background: 'transparent',
-                          color: 'var(--blue-800)',
-                          fontSize: 12,
-                          resize: 'none',
-                          outline: 'none',
-                          fontFamily: 'var(--font)',
-                          lineHeight: 1.5,
-                        }}
-                      />
-                    </>
+                    <textarea
+                      value={aiReply}
+                      onChange={(e) => setAiReply(e.target.value)}
+                      style={{
+                        width: '100%',
+                        flex: 1,
+                        minHeight: 0,
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--blue-800)',
+                        fontSize: 12,
+                        resize: 'none',
+                        outline: 'none',
+                        fontFamily: 'var(--font)',
+                        lineHeight: 1.5,
+                      }}
+                    />
                   )}
                 </div>
-                <div className="flex gap-8 mt-8">
+                <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
                   <button
                     className="btn-primary"
                     onClick={handleSendAiReply}
@@ -719,32 +682,53 @@ export default function Conversations() {
               </div>
             )}
 
-            {/* Human Mode Input — visible whenever this conv is in human mode */}
+            {/* Human Mode Input — panel grows; button row anchored at bottom */}
             {mode === 'human' && (
-              <div style={{ padding: '8px 16px 12px', background: 'var(--bg-primary)', flexShrink: 0 }}>
+              <div
+                style={{
+                  padding: '8px 16px 12px',
+                  background: 'var(--bg-primary)',
+                  flexBasis: humanInputSize.height,
+                  flexShrink: 1,
+                  flexGrow: 0,
+                  minHeight: 160,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{ ...dragHandleStyle, flexShrink: 0 }}
+                  onMouseDown={humanInputSize.startDrag}
+                  title="拖动调整面板高度"
+                />
                 {assist && (
-                  <div className="ai-preview" style={{ marginBottom: 8, display: 'flex', flexDirection: 'column' }}>
-                    <div className="ai-preview-label">AI 生成内容（拖上方灰条调整高度）</div>
+                  <div
+                    className="ai-preview"
+                    style={{
+                      marginBottom: 8,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      flex: 1,
+                      minHeight: 0,
+                    }}
+                  >
+                    <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容</div>
                     <div
-                      style={dragHandleStyle}
-                      onMouseDown={assistPreviewSize.startDrag}
-                      title="拖动调整高度"
-                    />
-                    <div
-                      ref={assistPreviewSize.ref as React.RefObject<HTMLDivElement>}
                       style={{
                         fontSize: 12,
                         color: 'var(--text-primary)',
                         lineHeight: 1.5,
                         whiteSpace: 'pre-wrap',
-                        height: assistPreviewSize.height,
+                        flex: 1,
+                        minHeight: 0,
                         overflowY: 'auto',
                         padding: '4px 0',
                       }}
                     >
                       {assist.improved}
                     </div>
-                    <div className="flex gap-8 mt-8">
+                    <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
                       <button className="btn-primary" onClick={() => { setInput(assist.improved); setAssist(null); }} style={{ fontSize: 11, padding: '4px 10px' }}>
                         使用优化版本
                       </button>
@@ -754,39 +738,40 @@ export default function Conversations() {
                     </div>
                   </div>
                 )}
-                <div className="flex gap-8" style={{ alignItems: 'flex-end' }}>
-                  <div className="flex-1" style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div
-                      style={dragHandleStyle}
-                      onMouseDown={humanInputSize.startDrag}
-                      title="拖动调整高度"
-                    />
-                    <textarea
-                      ref={humanInputSize.ref as React.RefObject<HTMLTextAreaElement>}
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      placeholder="输入消息... — 回车换行，按右侧按钮发送"
-                      style={{
-                        width: '100%',
-                        height: humanInputSize.height,
-                        resize: 'none',
-                        fontFamily: 'var(--font)',
-                        fontSize: 13,
-                        lineHeight: 1.5,
-                      }}
-                    />
-                  </div>
-                  <button
-                    className="btn-primary"
-                    onClick={handleSend}
-                    disabled={sending || !input.trim()}
-                    style={{ opacity: sending || !input.trim() ? 0.4 : 1 }}
-                  >
-                    发送
-                  </button>
-                </div>
-                {input.trim() && (
-                  <div className="mt-8">
+                {!assist && (
+                  <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="输入消息... — 回车换行，按右侧按钮发送"
+                    style={{
+                      width: '100%',
+                      flex: 1,
+                      minHeight: 0,
+                      resize: 'none',
+                      fontFamily: 'var(--font)',
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                    }}
+                  />
+                )}
+                {assist && (
+                  <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="输入消息... — 回车换行，按右侧按钮发送"
+                    style={{
+                      width: '100%',
+                      minHeight: 60,
+                      resize: 'none',
+                      fontFamily: 'var(--font)',
+                      fontSize: 13,
+                      lineHeight: 1.5,
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <div className="flex gap-8 mt-8" style={{ alignItems: 'center', flexShrink: 0 }}>
+                  {input.trim() && (
                     <button
                       className="tag-pill tag-ai"
                       onClick={handleAssist}
@@ -804,8 +789,17 @@ export default function Conversations() {
                         ? 'AI 翻译成英文并优化'
                         : 'AI 优化英文表达'}
                     </button>
-                  </div>
-                )}
+                  )}
+                  <span className="flex-1" />
+                  <button
+                    className="btn-primary"
+                    onClick={handleSend}
+                    disabled={sending || !input.trim()}
+                    style={{ opacity: sending || !input.trim() ? 0.4 : 1 }}
+                  >
+                    发送
+                  </button>
+                </div>
               </div>
             )}
           </>
