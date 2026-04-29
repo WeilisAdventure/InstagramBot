@@ -173,11 +173,11 @@ export default function Conversations() {
   // across page loads.
   // Outer panel heights (drag handle at very top of input panel).
   const aiPanelSize = useResizable(360, 'instabot.height.aiPanel');
-  const humanPanelSize = useResizable(220, 'instabot.height.humanPanel');
-  // Inner splitter inside the AI panel: how tall the prompt section
-  // (prompt textarea + Generate button row) is. Whatever's left goes to
-  // the AI reply preview.
+  const humanPanelSize = useResizable(260, 'instabot.height.humanPanel');
+  // Inner splitter inside the AI panel: how tall the prompt section is.
   const aiPromptSize = useResizable(80, 'instabot.height.aiPrompt');
+  // Inner splitter inside the human panel: how tall the assist preview is.
+  const humanAssistSize = useResizable(120, 'instabot.height.humanAssist');
 
   // True while POST /assist is in-flight; lock the assist button to
   // prevent duplicate calls.
@@ -801,41 +801,53 @@ export default function Conversations() {
                 {/* Middle flex area — assist preview + input textarea */}
                 <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                   {assist && (
-                    <div
-                      className="ai-preview"
-                      style={{
-                        marginBottom: 4,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        flex: 2,
-                        minHeight: 60,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容</div>
+                    <>
                       <div
+                        ref={humanAssistSize.targetRef as React.RefObject<HTMLDivElement>}
+                        className="ai-preview"
                         style={{
-                          fontSize: 12,
-                          color: 'var(--text-primary)',
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap',
-                          flex: 1,
-                          minHeight: 0,
-                          overflowY: 'auto',
-                          padding: '4px 0',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          flexBasis: humanAssistSize.height,
+                          flexShrink: 1,
+                          flexGrow: 0,
+                          minHeight: 60,
+                          overflow: 'hidden',
                         }}
                       >
-                        {assist.improved}
+                        <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容</div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: 'var(--text-primary)',
+                            lineHeight: 1.5,
+                            whiteSpace: 'pre-wrap',
+                            flex: 1,
+                            minHeight: 0,
+                            overflowY: 'auto',
+                            padding: '4px 0',
+                          }}
+                        >
+                          {assist.improved}
+                        </div>
+                        <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
+                          <button className="btn-primary" onClick={() => { setInput(assist.improved); setAssist(null); }} style={{ fontSize: 11, padding: '4px 10px' }}>
+                            使用优化版本
+                          </button>
+                          <button className="btn" onClick={() => setAssist(null)} style={{ fontSize: 11, padding: '4px 10px' }}>
+                            取消
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
-                        <button className="btn-primary" onClick={() => { setInput(assist.improved); setAssist(null); }} style={{ fontSize: 11, padding: '4px 10px' }}>
-                          使用优化版本
-                        </button>
-                        <button className="btn" onClick={() => setAssist(null)} style={{ fontSize: 11, padding: '4px 10px' }}>
-                          取消
-                        </button>
+                      {/* Inner splitter between assist preview and input textarea */}
+                      <div
+                        style={innerSplitterStyle}
+                        onMouseDown={humanAssistSize.startDrag}
+                        title="上下拖动：调整翻译内容区与输入框的比例"
+                      >
+                        ⇅ 拖动调整两窗口比例
                       </div>
-                    </div>
+                    </>
                   )}
                   <textarea
                     value={input}
