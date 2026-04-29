@@ -70,17 +70,49 @@ function timeAgo(dateStr: string) {
 // Drag-to-resize hook for textareas. Drag handle sits ABOVE the textarea;
 // pull up to grow, push down to shrink. Native browser resize is disabled
 // (resize: 'none') so the corner triangle never disappears under text.
-// Reserve this many pixels at the bottom of the viewport for the action
-// buttons (Send / Send AI Reply / etc.) so the resizable textarea never
-// pushes them off-screen.
-const RESIZE_BOTTOM_RESERVE = 280;
-
-function maxAllowedHeight(): number {
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  return Math.max(120, vh - RESIZE_BOTTOM_RESERVE);
-}
-
+/**
+ * Drag-to-resize hook. The cap is computed dynamically from the textarea's
+ * own ref, so the textarea CAN'T grow taller than the room actually
+ * available to it inside the surrounding flex column. The button row
+ * below the textarea therefore always stays inside the viewport.
+ *
+ * Heuristic: we look at the textarea's ancestor that has the largest
+ * height (typically the right-pane), measure its inner height, subtract
+ * the height of the textarea's parent excluding the textarea (i.e. the
+ * non-textarea siblings), and use whatever is left as the cap.
+ */
 function useResizable(initial: number, storageKey?: string) {
+  const ref = useRef<HTMLTextAreaElement | HTMLDivElement | null>(null);
+
+  const computeMax = (): number => {
+    const node = ref.current;
+    if (!node || typeof window === 'undefined') return 500;
+    // Walk up to the nearest container that fills the viewport
+    // vertically (flex: 1 ancestor inside the right pane).
+    let container: HTMLElement | null = node.parentElement;
+    let containerH = 0;
+    while (container) {
+      const r = container.getBoundingClientRect();
+      if (r.height > containerH) {
+        containerH = r.height;
+      }
+      // Stop walking once we hit something that fills > half the viewport.
+      if (r.height >= window.innerHeight * 0.6) break;
+      container = container.parentElement;
+    }
+    // Subtract the height of siblings around our element so the cap
+    // accounts for buttons / labels / mode switch / etc.
+    const myH = node.getBoundingClientRect().height;
+    const parentRect = node.parentElement?.getBoundingClientRect();
+    const parentH = parentRect?.height ?? myH;
+    // Other content next to/around the textarea inside its closest siblings:
+    const siblingsAbove = parentH - myH;
+    // Conservative buffer for buttons and padding outside our parent:
+    const safetyBuffer = 90;
+    const cap = containerH - siblingsAbove - safetyBuffer;
+    return Math.max(80, Math.min(900, cap));
+  };
+
   const [height, setHeight] = useState<number>(() => {
     let saved: number | null = null;
     if (storageKey && typeof window !== 'undefined') {
@@ -90,11 +122,23 @@ function useResizable(initial: number, storageKey?: string) {
         if (!isNaN(n) && n >= 60) saved = n;
       }
     }
-    const start = saved ?? initial;
-    // Clamp on read so a previously-saved tall value on a now-smaller
-    // viewport doesn't immediately push buttons off-screen.
-    return Math.max(60, Math.min(maxAllowedHeight(), start));
+    return saved ?? initial;
   });
+
+  // Re-clamp on layout / window resize
+  useEffect(() => {
+    const onResize = () => {
+      setHeight((h) => Math.max(60, Math.min(computeMax(), h)));
+    };
+    window.addEventListener('resize', onResize);
+    // Initial clamp once layout settles
+    const t = setTimeout(onResize, 50);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const startDrag = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -102,15 +146,15 @@ function useResizable(initial: number, storageKey?: string) {
     const startH = height;
 
     const onMove = (m: MouseEvent) => {
-      // Drag up (clientY decreases) ⇒ delta positive ⇒ taller textarea.
       const delta = startY - m.clientY;
-      const next = Math.max(60, Math.min(maxAllowedHeight(), startH + delta));
+      const cap = computeMax();
+      const next = Math.max(60, Math.min(cap, startH + delta));
       setHeight(next);
       if (storageKey) {
         try {
           window.localStorage.setItem(storageKey, String(next));
         } catch {
-          /* localStorage might be blocked; non-fatal */
+          /* non-fatal */
         }
       }
     };
@@ -124,7 +168,7 @@ function useResizable(initial: number, storageKey?: string) {
     window.addEventListener('mouseup', onUp);
   };
 
-  return { height, startDrag };
+  return { height, startDrag, ref };
 }
 
 const dragHandleStyle: React.CSSProperties = {
@@ -643,6 +687,7 @@ export default function Conversations() {
                         title="拖动调整高度"
                       />
                       <textarea
+                        ref={aiPreviewSize.ref as React.RefObject<HTMLTextAreaElement>}
                         value={aiReply}
                         onChange={(e) => setAiReply(e.target.value)}
                         style={{
@@ -686,6 +731,7 @@ export default function Conversations() {
                       title="拖动调整高度"
                     />
                     <div
+                      ref={assistPreviewSize.ref as React.RefObject<HTMLDivElement>}
                       style={{
                         fontSize: 12,
                         color: 'var(--text-primary)',
@@ -716,6 +762,7 @@ export default function Conversations() {
                       title="拖动调整高度"
                     />
                     <textarea
+                      ref={humanInputSize.ref as React.RefObject<HTMLTextAreaElement>}
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       placeholder="输入消息... — 回车换行，按右侧按钮发送"

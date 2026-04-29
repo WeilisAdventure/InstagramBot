@@ -502,7 +502,7 @@ textarea { min-height: 70px; resize: vertical; line-height: 1.5; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
 
 /* -- Scroll container -- */
-.scroll-y { overflow-y: auto; flex: 1; padding: 12px 16px; }
+.scroll-y { overflow-y: auto; flex: 1; min-height: 0; padding: 12px 16px; }
 
 /* -- Status color utilities -- */
 .text-success { color: #166534; }
