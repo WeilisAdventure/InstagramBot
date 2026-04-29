@@ -176,7 +176,8 @@ export default function Conversations() {
   const aiPanelSize = useResizable(360, 'instabot.height.aiPanel');
   const humanPanelSize = useResizable(260, 'instabot.height.humanPanel');
   // Inner splitter inside the AI panel: how tall the prompt section is.
-  const aiPromptSize = useResizable(80, 'instabot.height.aiPrompt');
+  // invertDrag=true: drag down → prompt grows (standard separator behaviour).
+  const aiPromptSize = useResizable(80, 'instabot.height.aiPrompt', 30, 600, true);
   // Inner splitter inside the human panel: how tall the assist preview is.
   // invertDrag=true: drag down → preview grows (standard separator behaviour).
   const humanAssistSize = useResizable(120, 'instabot.height.humanAssist', 40, 600, true);
