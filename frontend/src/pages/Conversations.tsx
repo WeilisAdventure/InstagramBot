@@ -622,13 +622,15 @@ export default function Conversations() {
                   title="拖动调整整个面板高度"
                 />
 
-                {/* Top sub-panel: prompt input + generate button */}
+                {/* Top sub-panel: prompt input + generate button.
+                    flex-shrink: 1 so it yields to the preview's min-height
+                    when the inner splitter is dragged too far. */}
                 <div
                   style={{
                     flexBasis: aiPromptSize.height,
-                    flexShrink: 0,
+                    flexShrink: 1,
                     flexGrow: 0,
-                    minHeight: 60,
+                    minHeight: 50,
                     display: 'flex',
                     gap: 8,
                     alignItems: 'stretch',
@@ -639,7 +641,7 @@ export default function Conversations() {
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                     placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」...'
-                    style={{ fontSize: 12, padding: '5px 8px', resize: 'none', fontFamily: 'var(--font)', lineHeight: 1.5 }}
+                    style={{ fontSize: 12, padding: '5px 8px', resize: 'none', fontFamily: 'var(--font)', lineHeight: 1.5, minHeight: 0 }}
                   />
                   <button
                     className="btn"
@@ -665,10 +667,12 @@ export default function Conversations() {
                   title="拖动调整提示词区与预览区的比例"
                 />
 
-                {/* Bottom sub-panel: preview + send-AI button anchored */}
+                {/* Bottom sub-panel: preview + send-AI button anchored.
+                    minHeight 140 guarantees the preview never collapses
+                    even if the inner splitter is yanked all the way down. */}
                 <div
                   className="ai-preview"
-                  style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+                  style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 140 }}
                 >
                   <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容（发送前可编辑）</div>
                   {aiReplyLoading ? (
