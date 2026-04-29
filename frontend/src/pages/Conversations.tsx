@@ -712,7 +712,7 @@ export default function Conversations() {
                 style={{
                   padding: '8px 16px 12px',
                   background: 'var(--bg-primary)',
-                  flexBasis: humanInputSize.height,
+                  flexBasis: humanPanelSize.height,
                   flexShrink: 1,
                   flexGrow: 0,
                   minHeight: 160,
@@ -723,7 +723,7 @@ export default function Conversations() {
               >
                 <div
                   style={{ ...dragHandleStyle, flexShrink: 0 }}
-                  onMouseDown={humanInputSize.startDrag}
+                  onMouseDown={humanPanelSize.startDrag}
                   title="拖动调整面板高度"
                 />
                 {assist && (
