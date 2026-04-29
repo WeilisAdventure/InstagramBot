@@ -649,6 +649,7 @@ export default function Conversations() {
                 view. The middle area absorbs all variation. */}
             {mode === 'ai' && (
               <div
+                ref={aiPanelSize.targetRef as React.RefObject<HTMLDivElement>}
                 style={{
                   padding: '0 16px 12px',
                   background: 'var(--bg-primary)',
@@ -778,6 +779,7 @@ export default function Conversations() {
                   bottom button row (anchored, never resizable)              */}
             {mode === 'human' && (
               <div
+                ref={humanPanelSize.targetRef as React.RefObject<HTMLDivElement>}
                 style={{
                   padding: '0 16px 12px',
                   background: 'var(--bg-primary)',

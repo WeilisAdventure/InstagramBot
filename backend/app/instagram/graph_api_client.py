@@ -65,22 +65,29 @@ class GraphApiClient(InstagramClient):
     async def stop_polling(self):
         await self.http.aclose()
 
-    async def send_dm(self, user_id: str, text: str) -> bool:
+    async def send_dm(self, user_id: str, text: str, tag: str | None = None) -> bool:
         """Send a DM via Instagram Messaging API.
 
         Endpoint: POST /me/messages
         Docs: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/messaging-api
+
+        tag: optional messaging tag e.g. "HUMAN_AGENT" to extend the reply
+             window beyond 24 hours (requires Meta app review approval).
         """
         chunks = [text[i:i + 1000] for i in range(0, len(text), 1000)]
         for chunk in chunks:
             try:
+                payload: dict = {
+                    "recipient": {"id": user_id},
+                    "message": {"text": chunk},
+                    "messaging_type": "RESPONSE",
+                }
+                if tag:
+                    payload["tag"] = tag
                 resp = await self.http.post(
                     f"{GRAPH_API_BASE}/me/messages",
                     params={"access_token": self.token},
-                    json={
-                        "recipient": {"id": user_id},
-                        "message": {"text": chunk},
-                    },
+                    json=payload,
                 )
                 if resp.status_code == 429:
                     logger.warning("Rate limited by Instagram API")
