@@ -718,7 +718,6 @@ export default function Conversations() {
                     onMouseDown={aiPromptSize.startDrag}
                     title="上下拖动：调整提示词区与预览区的比例"
                   >
-                    ⇅ 拖动调整两窗口比例
                   </div>
 
                   {/* Preview section — label + scroll/edit area */}
