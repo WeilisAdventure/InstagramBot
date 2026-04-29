@@ -70,16 +70,30 @@ function timeAgo(dateStr: string) {
 // Drag-to-resize hook for textareas. Drag handle sits ABOVE the textarea;
 // pull up to grow, push down to shrink. Native browser resize is disabled
 // (resize: 'none') so the corner triangle never disappears under text.
+// Reserve this many pixels at the bottom of the viewport for the action
+// buttons (Send / Send AI Reply / etc.) so the resizable textarea never
+// pushes them off-screen.
+const RESIZE_BOTTOM_RESERVE = 280;
+
+function maxAllowedHeight(): number {
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  return Math.max(120, vh - RESIZE_BOTTOM_RESERVE);
+}
+
 function useResizable(initial: number, storageKey?: string) {
   const [height, setHeight] = useState<number>(() => {
+    let saved: number | null = null;
     if (storageKey && typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem(storageKey);
-      if (saved) {
-        const n = parseInt(saved, 10);
-        if (!isNaN(n) && n >= 60) return n;
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const n = parseInt(raw, 10);
+        if (!isNaN(n) && n >= 60) saved = n;
       }
     }
-    return initial;
+    const start = saved ?? initial;
+    // Clamp on read so a previously-saved tall value on a now-smaller
+    // viewport doesn't immediately push buttons off-screen.
+    return Math.max(60, Math.min(maxAllowedHeight(), start));
   });
 
   const startDrag = (e: React.MouseEvent) => {
@@ -90,7 +104,7 @@ function useResizable(initial: number, storageKey?: string) {
     const onMove = (m: MouseEvent) => {
       // Drag up (clientY decreases) ⇒ delta positive ⇒ taller textarea.
       const delta = startY - m.clientY;
-      const next = Math.max(60, Math.min(800, startH + delta));
+      const next = Math.max(60, Math.min(maxAllowedHeight(), startH + delta));
       setHeight(next);
       if (storageKey) {
         try {
@@ -133,6 +147,11 @@ export default function Conversations() {
   // across page loads.
   const aiPreviewSize = useResizable(160, 'instabot.height.aiPreview');
   const humanInputSize = useResizable(80, 'instabot.height.humanInput');
+  const assistPreviewSize = useResizable(120, 'instabot.height.assistPreview');
+
+  // True while POST /assist is in-flight; lock the assist button to
+  // prevent duplicate calls.
+  const [assisting, setAssisting] = useState(false);
 
   // Pick up ?conv=ID (e.g. when navigated from the comments inbox)
   useEffect(() => {
@@ -362,11 +381,13 @@ export default function Conversations() {
   };
 
   const handleAssist = async () => {
-    if (!detail || !input.trim()) return;
+    if (!detail || !input.trim() || assisting) return;
+    setAssisting(true);
     try {
       const result = await assistInput(detail.id, input);
       setAssist(result);
     } catch { /* ignore */ }
+    setAssisting(false);
   };
 
   const hasChinese = (text: string) => /[\u4e00-\u9fff]/.test(text);
@@ -594,8 +615,19 @@ export default function Conversations() {
                     rows={2}
                     style={{ fontSize: 12, padding: '5px 8px', resize: 'vertical', minHeight: 36, fontFamily: 'var(--font)', lineHeight: 1.5 }}
                   />
-                  <button className="btn" onClick={loadAiReply} disabled={aiReplyLoading} style={{ fontSize: 11, padding: '5px 10px', whiteSpace: 'nowrap' }}>
-                    {aiReply ? '重新生成' : '生成回复'}
+                  <button
+                    className="btn"
+                    onClick={loadAiReply}
+                    disabled={aiReplyLoading}
+                    style={{
+                      fontSize: 11,
+                      padding: '5px 10px',
+                      whiteSpace: 'nowrap',
+                      cursor: aiReplyLoading ? 'wait' : 'pointer',
+                      opacity: aiReplyLoading ? 0.5 : 1,
+                    }}
+                  >
+                    {aiReplyLoading ? '生成中...' : aiReply ? '重新生成' : '生成回复'}
                   </button>
                 </div>
                 <div className="field-label" style={{ marginBottom: 6 }}>AI 回复预览（发送前可编辑，拖上方灰条调整高度）：</div>
@@ -646,9 +678,26 @@ export default function Conversations() {
             {mode === 'human' && (
               <div style={{ padding: '8px 16px 12px', background: 'var(--bg-primary)', flexShrink: 0 }}>
                 {assist && (
-                  <div className="ai-preview" style={{ marginBottom: 8 }}>
-                    <div className="ai-preview-label">AI 生成内容</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{assist.improved}</div>
+                  <div className="ai-preview" style={{ marginBottom: 8, display: 'flex', flexDirection: 'column' }}>
+                    <div className="ai-preview-label">AI 生成内容（拖上方灰条调整高度）</div>
+                    <div
+                      style={dragHandleStyle}
+                      onMouseDown={assistPreviewSize.startDrag}
+                      title="拖动调整高度"
+                    />
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--text-primary)',
+                        lineHeight: 1.5,
+                        whiteSpace: 'pre-wrap',
+                        height: assistPreviewSize.height,
+                        overflowY: 'auto',
+                        padding: '4px 0',
+                      }}
+                    >
+                      {assist.improved}
+                    </div>
                     <div className="flex gap-8 mt-8">
                       <button className="btn-primary" onClick={() => { setInput(assist.improved); setAssist(null); }} style={{ fontSize: 11, padding: '4px 10px' }}>
                         使用优化版本
@@ -694,9 +743,19 @@ export default function Conversations() {
                     <button
                       className="tag-pill tag-ai"
                       onClick={handleAssist}
-                      style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 11 }}
+                      disabled={assisting}
+                      style={{
+                        cursor: assisting ? 'wait' : 'pointer',
+                        padding: '4px 10px',
+                        fontSize: 11,
+                        opacity: assisting ? 0.5 : 1,
+                      }}
                     >
-                      {hasChinese(input) ? 'AI 翻译成英文并优化' : 'AI 优化英文表达'}
+                      {assisting
+                        ? '处理中...'
+                        : hasChinese(input)
+                        ? 'AI 翻译成英文并优化'
+                        : 'AI 优化英文表达'}
                     </button>
                   </div>
                 )}
