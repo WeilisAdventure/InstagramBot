@@ -804,11 +804,12 @@ export default function Conversations() {
                     <div
                       className="ai-preview"
                       style={{
-                        marginBottom: 8,
+                        marginBottom: 4,
                         display: 'flex',
                         flexDirection: 'column',
-                        flex: 1,
-                        minHeight: 0,
+                        flex: 2,
+                        minHeight: 60,
+                        overflow: 'hidden',
                       }}
                     >
                       <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容</div>
@@ -842,9 +843,9 @@ export default function Conversations() {
                     placeholder="输入消息... — 回车换行，按右侧按钮发送"
                     style={{
                       width: '100%',
-                      flex: assist ? 'none' : 1,
-                      minHeight: assist ? 60 : 0,
-                      flexShrink: assist ? 0 : 1,
+                      flex: 1,
+                      minHeight: 50,
+                      flexShrink: 1,
                       resize: 'none',
                       fontFamily: 'var(--font)',
                       fontSize: 13,
