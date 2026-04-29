@@ -65,6 +65,9 @@ class GoogleProvider(AIProvider):
             "Analyze the following text. If it's in Chinese, translate it to natural English "
             "suitable for an Instagram DM reply from a delivery company. If it's in English, "
             "polish and improve it for clarity and professionalism.\n\n"
+            "PRESERVE THE ORIGINAL STRUCTURE: keep the same paragraph breaks, line breaks, "
+            "bullet points, and ordering as the input. Do NOT merge multiple paragraphs into "
+            "a single block. Inside the JSON value use \\n for newlines.\n\n"
             "Respond with ONE valid JSON object and NOTHING else — no markdown, no code "
             "fences, no commentary before or after.\n\n"
             'Schema: {"original": "<input>", "improved": "<output>", "language": "zh" | "en"}\n\n'

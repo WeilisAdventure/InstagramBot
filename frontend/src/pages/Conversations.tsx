@@ -569,7 +569,7 @@ export default function Conversations() {
                 {assist && (
                   <div className="ai-preview" style={{ marginBottom: 8 }}>
                     <div className="ai-preview-label">AI 生成内容</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.5 }}>{assist.improved}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{assist.improved}</div>
                     <div className="flex gap-8 mt-8">
                       <button className="btn-primary" onClick={() => { setInput(assist.improved); setAssist(null); }} style={{ fontSize: 11, padding: '4px 10px' }}>
                         使用优化版本
