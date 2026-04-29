@@ -136,12 +136,13 @@ export default function Conversations() {
 
   // Per-textarea resize state, persisted to localStorage so size sticks
   // across page loads.
-  // Heights here are PANEL heights (the entire bottom panel, drag handle to
-  // bottom button row). The textarea/preview inside the panel takes the
-  // remaining space via flex: 1 + min-height: 0; buttons are flex-shrink: 0
-  // and stay anchored to the bottom regardless of panel height.
-  const aiPreviewSize = useResizable(360, 'instabot.height.aiPanel');
-  const humanInputSize = useResizable(220, 'instabot.height.humanPanel');
+  // Outer panel heights (drag handle at very top of input panel).
+  const aiPanelSize = useResizable(360, 'instabot.height.aiPanel');
+  const humanPanelSize = useResizable(220, 'instabot.height.humanPanel');
+  // Inner splitter inside the AI panel: how tall the prompt section
+  // (prompt textarea + Generate button row) is. Whatever's left goes to
+  // the AI reply preview.
+  const aiPromptSize = useResizable(80, 'instabot.height.aiPrompt');
 
   // True while POST /assist is in-flight; lock the assist button to
   // prevent duplicate calls.
@@ -597,13 +598,16 @@ export default function Conversations() {
               </div>
             </div>
 
-            {/* AI Mode Input — panel grows; button row anchored at bottom */}
+            {/* AI Mode Input — outer drag controls panel total; inner drag
+                redistributes between prompt section and preview section.
+                Outer panel boundaries never change unless the outer handle
+                is used. */}
             {mode === 'ai' && (
               <div
                 style={{
-                  padding: '8px 16px 12px',
+                  padding: '0 16px 12px',
                   background: 'var(--bg-primary)',
-                  flexBasis: aiPreviewSize.height,
+                  flexBasis: aiPanelSize.height,
                   flexShrink: 1,
                   flexGrow: 0,
                   minHeight: 200,
@@ -614,17 +618,28 @@ export default function Conversations() {
               >
                 <div
                   style={{ ...dragHandleStyle, flexShrink: 0 }}
-                  onMouseDown={aiPreviewSize.startDrag}
-                  title="拖动调整面板高度"
+                  onMouseDown={aiPanelSize.startDrag}
+                  title="拖动调整整个面板高度"
                 />
-                <div className="flex gap-8" style={{ marginBottom: 6, alignItems: 'flex-start', flexShrink: 0 }}>
+
+                {/* Top sub-panel: prompt input + generate button */}
+                <div
+                  style={{
+                    flexBasis: aiPromptSize.height,
+                    flexShrink: 0,
+                    flexGrow: 0,
+                    minHeight: 60,
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'stretch',
+                  }}
+                >
                   <textarea
                     className="flex-1"
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
                     placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」...'
-                    rows={2}
-                    style={{ fontSize: 12, padding: '5px 8px', resize: 'vertical', minHeight: 36, fontFamily: 'var(--font)', lineHeight: 1.5 }}
+                    style={{ fontSize: 12, padding: '5px 8px', resize: 'none', fontFamily: 'var(--font)', lineHeight: 1.5 }}
                   />
                   <button
                     className="btn"
@@ -636,17 +651,26 @@ export default function Conversations() {
                       whiteSpace: 'nowrap',
                       cursor: aiReplyLoading ? 'wait' : 'pointer',
                       opacity: aiReplyLoading ? 0.5 : 1,
+                      alignSelf: 'flex-start',
                     }}
                   >
                     {aiReplyLoading ? '生成中...' : aiReply ? '重新生成' : '生成回复'}
                   </button>
                 </div>
-                <div className="field-label" style={{ marginBottom: 6, flexShrink: 0 }}>AI 回复预览（发送前可编辑）：</div>
+
+                {/* Inner splitter: drag this to give prompt more / less room */}
+                <div
+                  style={{ ...dragHandleStyle, flexShrink: 0 }}
+                  onMouseDown={aiPromptSize.startDrag}
+                  title="拖动调整提示词区与预览区的比例"
+                />
+
+                {/* Bottom sub-panel: preview + send-AI button anchored */}
                 <div
                   className="ai-preview"
                   style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
                 >
-                  <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容</div>
+                  <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容（发送前可编辑）</div>
                   {aiReplyLoading ? (
                     <div className="text-xs" style={{ padding: '4px 0' }}>正在生成...</div>
                   ) : (
@@ -668,16 +692,16 @@ export default function Conversations() {
                       }}
                     />
                   )}
-                </div>
-                <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
-                  <button
-                    className="btn-primary"
-                    onClick={handleSendAiReply}
-                    disabled={sending || !aiReply.trim()}
-                    style={{ opacity: sending || !aiReply.trim() ? 0.4 : 1 }}
-                  >
-                    发送 AI 回复
-                  </button>
+                  <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
+                    <button
+                      className="btn-primary"
+                      onClick={handleSendAiReply}
+                      disabled={sending || !aiReply.trim()}
+                      style={{ opacity: sending || !aiReply.trim() ? 0.4 : 1 }}
+                    >
+                      发送 AI 回复
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
