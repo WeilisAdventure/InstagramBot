@@ -136,31 +136,23 @@ function useResizable(
 }
 
 const dragHandleStyle: React.CSSProperties = {
-  height: 14,
+  height: 4,
   cursor: 'ns-resize',
   background: 'var(--border-soft)',
-  margin: '4px 0',
-  borderRadius: 3,
+  margin: '3px 0',
+  borderRadius: 2,
   flexShrink: 0,
   position: 'relative',
 };
 
-// Inner splitter — more prominent so it's obviously different from the
-// outer panel-resize handle and easy to grab.
 const innerSplitterStyle: React.CSSProperties = {
-  height: 16,
+  height: 4,
   cursor: 'ns-resize',
   background: 'var(--accent, #185FA5)',
-  opacity: 0.18,
-  margin: '6px 0',
-  borderRadius: 4,
+  opacity: 0.35,
+  margin: '3px 0',
+  borderRadius: 2,
   flexShrink: 0,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 10,
-  color: 'var(--accent, #185FA5)',
-  fontWeight: 600,
   userSelect: 'none',
 };
 
