@@ -76,13 +76,24 @@ function timeAgo(dateStr: string) {
  * the panel guarantees that the panel never overflows its parent and that
  * the bottom button row always stays inside the viewport.
  */
-function useResizable(initial: number, storageKey?: string, minPx: number = 30) {
+function useResizable(
+  initial: number,
+  storageKey?: string,
+  minPx: number = 30,
+  maxPx: number = 800,
+) {
+  const targetRef = useRef<HTMLElement | null>(null);
+
   const [height, setHeight] = useState<number>(() => {
     if (storageKey && typeof window !== 'undefined') {
       const raw = window.localStorage.getItem(storageKey);
       if (raw) {
         const n = parseInt(raw, 10);
-        if (!isNaN(n) && n >= minPx) return n;
+        // Reject saved values that are out of reasonable bounds — these
+        // tend to leak through from earlier broken-resize sessions and
+        // make every subsequent drag look frozen because the rendered
+        // height is already clamped by the container.
+        if (!isNaN(n) && n >= minPx && n <= maxPx) return n;
       }
     }
     return initial;
@@ -91,11 +102,16 @@ function useResizable(initial: number, storageKey?: string, minPx: number = 30) 
   const startDrag = (e: React.MouseEvent) => {
     e.preventDefault();
     const startY = e.clientY;
-    const startH = height;
+    // Use the ACTUAL rendered height as the drag origin, not the
+    // possibly-stale state value. Without this, if state says 400 but
+    // flex shrunk the element to 250, the first 150px of upward drag
+    // visibly does nothing — which is exactly the "can't drag" symptom.
+    const measured = targetRef.current?.getBoundingClientRect().height;
+    const startH = typeof measured === 'number' && measured > 0 ? measured : height;
 
     const onMove = (m: MouseEvent) => {
       const delta = startY - m.clientY;
-      const next = Math.max(minPx, startH + delta);
+      const next = Math.max(minPx, Math.min(maxPx, startH + delta));
       setHeight(next);
       if (storageKey) {
         try {
@@ -115,7 +131,7 @@ function useResizable(initial: number, storageKey?: string, minPx: number = 30) 
     window.addEventListener('mouseup', onUp);
   };
 
-  return { height, startDrag };
+  return { height, startDrag, targetRef };
 }
 
 const dragHandleStyle: React.CSSProperties = {
@@ -658,6 +674,7 @@ export default function Conversations() {
 
                   {/* Prompt section */}
                   <div
+                    ref={aiPromptSize.targetRef as React.RefObject<HTMLDivElement>}
                     style={{
                       flexBasis: aiPromptSize.height,
                       flexShrink: 1,
