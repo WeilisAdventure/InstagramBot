@@ -598,10 +598,20 @@ export default function Conversations() {
               </div>
             </div>
 
-            {/* AI Mode Input — outer drag controls panel total; inner drag
-                redistributes between prompt section and preview section.
-                Outer panel boundaries never change unless the outer handle
-                is used. */}
+            {/* AI Mode Input.
+                Layout:
+                  outer-drag                       (flex-shrink: 0)
+                  ┌─ flex middle area ──────────┐  (flex: 1, min-height: 0)
+                  │   prompt section            │   ← flex-basis aiPromptSize
+                  │   inner drag                │
+                  │   preview label             │
+                  │   preview textarea (grows)  │
+                  └─────────────────────────────┘
+                  send button row                  (flex-shrink: 0, ANCHORED)
+
+                The send button row is OUTSIDE the resizable middle area,
+                so no amount of inner dragging can ever push it out of
+                view. The middle area absorbs all variation. */}
             {mode === 'ai' && (
               <div
                 style={{
@@ -616,105 +626,122 @@ export default function Conversations() {
                   overflow: 'hidden',
                 }}
               >
+                {/* Outer drag — adjust whole panel size */}
                 <div
                   style={{ ...dragHandleStyle, flexShrink: 0 }}
                   onMouseDown={aiPanelSize.startDrag}
                   title="拖动调整整个面板高度"
                 />
 
-                {/* Top sub-panel: prompt input + generate button.
-                    flex-shrink: 1 so it yields to the preview's min-height
-                    when the inner splitter is dragged too far. */}
-                <div
-                  style={{
-                    flexBasis: aiPromptSize.height,
-                    flexShrink: 1,
-                    flexGrow: 0,
-                    minHeight: 50,
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'stretch',
-                  }}
-                >
-                  <textarea
-                    className="flex-1"
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」...'
-                    style={{ fontSize: 12, padding: '5px 8px', resize: 'none', fontFamily: 'var(--font)', lineHeight: 1.5, minHeight: 0 }}
-                  />
-                  <button
-                    className="btn"
-                    onClick={loadAiReply}
-                    disabled={aiReplyLoading}
+                {/* Middle flex area — contains prompt + preview, takes
+                    whatever space is left after the bottom button row. */}
+                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+
+                  {/* Prompt section */}
+                  <div
                     style={{
-                      fontSize: 11,
-                      padding: '5px 10px',
-                      whiteSpace: 'nowrap',
-                      cursor: aiReplyLoading ? 'wait' : 'pointer',
-                      opacity: aiReplyLoading ? 0.5 : 1,
-                      alignSelf: 'flex-start',
+                      flexBasis: aiPromptSize.height,
+                      flexShrink: 1,
+                      flexGrow: 0,
+                      minHeight: 40,
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'stretch',
                     }}
                   >
-                    {aiReplyLoading ? '生成中...' : aiReply ? '重新生成' : '生成回复'}
-                  </button>
-                </div>
-
-                {/* Inner splitter: drag this to give prompt more / less room */}
-                <div
-                  style={{ ...dragHandleStyle, flexShrink: 0 }}
-                  onMouseDown={aiPromptSize.startDrag}
-                  title="拖动调整提示词区与预览区的比例"
-                />
-
-                {/* Bottom sub-panel: preview + send-AI button anchored.
-                    minHeight 140 guarantees the preview never collapses
-                    even if the inner splitter is yanked all the way down. */}
-                <div
-                  className="ai-preview"
-                  style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 140 }}
-                >
-                  <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容（发送前可编辑）</div>
-                  {aiReplyLoading ? (
-                    <div className="text-xs" style={{ padding: '4px 0' }}>正在生成...</div>
-                  ) : (
                     <textarea
-                      value={aiReply}
-                      onChange={(e) => setAiReply(e.target.value)}
+                      className="flex-1"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」...'
                       style={{
-                        width: '100%',
-                        flex: 1,
-                        minHeight: 0,
-                        border: 'none',
-                        background: 'transparent',
-                        color: 'var(--blue-800)',
                         fontSize: 12,
+                        padding: '5px 8px',
                         resize: 'none',
-                        outline: 'none',
                         fontFamily: 'var(--font)',
                         lineHeight: 1.5,
+                        minHeight: 0,
                       }}
                     />
-                  )}
-                  <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
                     <button
-                      className="btn-primary"
-                      onClick={handleSendAiReply}
-                      disabled={sending || !aiReply.trim()}
-                      style={{ opacity: sending || !aiReply.trim() ? 0.4 : 1 }}
+                      className="btn"
+                      onClick={loadAiReply}
+                      disabled={aiReplyLoading}
+                      style={{
+                        fontSize: 11,
+                        padding: '5px 10px',
+                        whiteSpace: 'nowrap',
+                        cursor: aiReplyLoading ? 'wait' : 'pointer',
+                        opacity: aiReplyLoading ? 0.5 : 1,
+                        alignSelf: 'flex-start',
+                      }}
                     >
-                      发送 AI 回复
+                      {aiReplyLoading ? '生成中...' : aiReply ? '重新生成' : '生成回复'}
                     </button>
                   </div>
+
+                  {/* Inner drag — redistribute between prompt and preview */}
+                  <div
+                    style={{ ...dragHandleStyle, flexShrink: 0 }}
+                    onMouseDown={aiPromptSize.startDrag}
+                    title="拖动调整提示词区与预览区的比例"
+                  />
+
+                  {/* Preview section — label + scroll/edit area */}
+                  <div
+                    className="ai-preview"
+                    style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+                  >
+                    <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容（发送前可编辑）</div>
+                    {aiReplyLoading ? (
+                      <div className="text-xs" style={{ padding: '4px 0' }}>正在生成...</div>
+                    ) : (
+                      <textarea
+                        value={aiReply}
+                        onChange={(e) => setAiReply(e.target.value)}
+                        style={{
+                          width: '100%',
+                          flex: 1,
+                          minHeight: 0,
+                          border: 'none',
+                          background: 'transparent',
+                          color: 'var(--blue-800)',
+                          fontSize: 12,
+                          resize: 'none',
+                          outline: 'none',
+                          fontFamily: 'var(--font)',
+                          lineHeight: 1.5,
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Send button — anchored at bottom of panel, never resizable */}
+                <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
+                  <button
+                    className="btn-primary"
+                    onClick={handleSendAiReply}
+                    disabled={sending || !aiReply.trim()}
+                    style={{ opacity: sending || !aiReply.trim() ? 0.4 : 1 }}
+                  >
+                    发送 AI 回复
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* Human Mode Input — panel grows; button row anchored at bottom */}
+            {/* Human Mode Input.
+                Layout (mirrors AI mode):
+                  outer-drag
+                  ┌─ flex middle area ──┐
+                  │   (assist preview if any) + input textarea
+                  └─────────────────────┘
+                  bottom button row (anchored, never resizable)              */}
             {mode === 'human' && (
               <div
                 style={{
-                  padding: '8px 16px 12px',
+                  padding: '0 16px 12px',
                   background: 'var(--bg-primary)',
                   flexBasis: humanPanelSize.height,
                   flexShrink: 1,
@@ -730,74 +757,63 @@ export default function Conversations() {
                   onMouseDown={humanPanelSize.startDrag}
                   title="拖动调整面板高度"
                 />
-                {assist && (
-                  <div
-                    className="ai-preview"
-                    style={{
-                      marginBottom: 8,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      flex: 1,
-                      minHeight: 0,
-                    }}
-                  >
-                    <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容</div>
+
+                {/* Middle flex area — assist preview + input textarea */}
+                <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                  {assist && (
                     <div
+                      className="ai-preview"
                       style={{
-                        fontSize: 12,
-                        color: 'var(--text-primary)',
-                        lineHeight: 1.5,
-                        whiteSpace: 'pre-wrap',
+                        marginBottom: 8,
+                        display: 'flex',
+                        flexDirection: 'column',
                         flex: 1,
                         minHeight: 0,
-                        overflowY: 'auto',
-                        padding: '4px 0',
                       }}
                     >
-                      {assist.improved}
+                      <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容</div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: 'var(--text-primary)',
+                          lineHeight: 1.5,
+                          whiteSpace: 'pre-wrap',
+                          flex: 1,
+                          minHeight: 0,
+                          overflowY: 'auto',
+                          padding: '4px 0',
+                        }}
+                      >
+                        {assist.improved}
+                      </div>
+                      <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
+                        <button className="btn-primary" onClick={() => { setInput(assist.improved); setAssist(null); }} style={{ fontSize: 11, padding: '4px 10px' }}>
+                          使用优化版本
+                        </button>
+                        <button className="btn" onClick={() => setAssist(null)} style={{ fontSize: 11, padding: '4px 10px' }}>
+                          取消
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
-                      <button className="btn-primary" onClick={() => { setInput(assist.improved); setAssist(null); }} style={{ fontSize: 11, padding: '4px 10px' }}>
-                        使用优化版本
-                      </button>
-                      <button className="btn" onClick={() => setAssist(null)} style={{ fontSize: 11, padding: '4px 10px' }}>
-                        取消
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {!assist && (
+                  )}
                   <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="输入消息... — 回车换行，按右侧按钮发送"
                     style={{
                       width: '100%',
-                      flex: 1,
-                      minHeight: 0,
+                      flex: assist ? 'none' : 1,
+                      minHeight: assist ? 60 : 0,
+                      flexShrink: assist ? 0 : 1,
                       resize: 'none',
                       fontFamily: 'var(--font)',
                       fontSize: 13,
                       lineHeight: 1.5,
                     }}
                   />
-                )}
-                {assist && (
-                  <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="输入消息... — 回车换行，按右侧按钮发送"
-                    style={{
-                      width: '100%',
-                      minHeight: 60,
-                      resize: 'none',
-                      fontFamily: 'var(--font)',
-                      fontSize: 13,
-                      lineHeight: 1.5,
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
+                </div>
+
+                {/* Bottom button row — anchored, never resizable */}
                 <div className="flex gap-8 mt-8" style={{ alignItems: 'center', flexShrink: 0 }}>
                   {input.trim() && (
                     <button
