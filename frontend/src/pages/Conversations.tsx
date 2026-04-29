@@ -81,6 +81,7 @@ function useResizable(
   storageKey?: string,
   minPx: number = 30,
   maxPx: number = 800,
+  invertDrag: boolean = false,
 ) {
   const targetRef = useRef<HTMLElement | null>(null);
 
@@ -110,7 +111,7 @@ function useResizable(
     const startH = typeof measured === 'number' && measured > 0 ? measured : height;
 
     const onMove = (m: MouseEvent) => {
-      const delta = startY - m.clientY;
+      const delta = invertDrag ? (m.clientY - startY) : (startY - m.clientY);
       const next = Math.max(minPx, Math.min(maxPx, startH + delta));
       setHeight(next);
       if (storageKey) {
@@ -177,7 +178,8 @@ export default function Conversations() {
   // Inner splitter inside the AI panel: how tall the prompt section is.
   const aiPromptSize = useResizable(80, 'instabot.height.aiPrompt');
   // Inner splitter inside the human panel: how tall the assist preview is.
-  const humanAssistSize = useResizable(120, 'instabot.height.humanAssist');
+  // invertDrag=true: drag down → preview grows (standard separator behaviour).
+  const humanAssistSize = useResizable(120, 'instabot.height.humanAssist', 40, 600, true);
 
   // True while POST /assist is in-flight; lock the assist button to
   // prevent duplicate calls.
