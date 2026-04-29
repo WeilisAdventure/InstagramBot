@@ -59,17 +59,20 @@ class OpenAIProvider(AIProvider):
             "Analyze the following text. If it's in Chinese, translate it to natural English "
             "suitable for an Instagram DM reply from a delivery company. If it's in English, "
             "polish and improve it for clarity and professionalism.\n\n"
-            "Respond in this exact JSON format:\n"
-            '{"original": "<the input text>", "improved": "<the translated or polished text>", "language": "<zh or en>"}\n\n'
+            "Respond with ONE valid JSON object and NOTHING else — no markdown, no code "
+            "fences, no commentary before or after.\n\n"
+            'Schema: {"original": "<input>", "improved": "<output>", "language": "zh" | "en"}\n\n'
             f"Text: {text}"
         )
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
-                max_tokens=300,
+                max_tokens=600,
                 messages=[{"role": "user", "content": prompt}],
             )
-            import json
-            return json.loads(response.choices[0].message.content or "{}")
-        except Exception:
+            from app.ai.base import _parse_assist_json
+            return _parse_assist_json(response.choices[0].message.content or "", text)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"translate_and_improve failed: {e}")
             return {"original": text, "improved": text, "language": "en"}
