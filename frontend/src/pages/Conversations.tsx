@@ -67,11 +67,72 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hours / 24)}天前`;
 }
 
+// Drag-to-resize hook for textareas. Drag handle sits ABOVE the textarea;
+// pull up to grow, push down to shrink. Native browser resize is disabled
+// (resize: 'none') so the corner triangle never disappears under text.
+function useResizable(initial: number, storageKey?: string) {
+  const [height, setHeight] = useState<number>(() => {
+    if (storageKey && typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem(storageKey);
+      if (saved) {
+        const n = parseInt(saved, 10);
+        if (!isNaN(n) && n >= 60) return n;
+      }
+    }
+    return initial;
+  });
+
+  const startDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = height;
+
+    const onMove = (m: MouseEvent) => {
+      // Drag up (clientY decreases) ⇒ delta positive ⇒ taller textarea.
+      const delta = startY - m.clientY;
+      const next = Math.max(60, Math.min(800, startH + delta));
+      setHeight(next);
+      if (storageKey) {
+        try {
+          window.localStorage.setItem(storageKey, String(next));
+        } catch {
+          /* localStorage might be blocked; non-fatal */
+        }
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.userSelect = '';
+    };
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  return { height, startDrag };
+}
+
+const dragHandleStyle: React.CSSProperties = {
+  height: 8,
+  cursor: 'ns-resize',
+  background:
+    'linear-gradient(to bottom, transparent 0%, transparent 40%, var(--border-soft) 40%, var(--border-soft) 60%, transparent 60%)',
+  margin: '4px 0',
+  borderRadius: 2,
+  flexShrink: 0,
+};
+
 export default function Conversations() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [convs, setConvs] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<ConversationDetail | null>(null);
+
+  // Per-textarea resize state, persisted to localStorage so size sticks
+  // across page loads.
+  const aiPreviewSize = useResizable(160, 'instabot.height.aiPreview');
+  const humanInputSize = useResizable(80, 'instabot.height.humanInput');
 
   // Pick up ?conv=ID (e.g. when navigated from the comments inbox)
   useEffect(() => {
@@ -537,17 +598,35 @@ export default function Conversations() {
                     {aiReply ? '重新生成' : '生成回复'}
                   </button>
                 </div>
-                <div className="field-label" style={{ marginBottom: 6 }}>AI 回复预览（发送前可编辑，可拖底部右下角调整高度）：</div>
+                <div className="field-label" style={{ marginBottom: 6 }}>AI 回复预览（发送前可编辑，拖上方灰条调整高度）：</div>
                 <div className="ai-preview" style={{ display: 'flex', flexDirection: 'column' }}>
                   <div className="ai-preview-label">AI 生成内容</div>
                   {aiReplyLoading ? (
                     <div className="text-xs" style={{ padding: '4px 0' }}>正在生成...</div>
                   ) : (
-                    <textarea
-                      value={aiReply}
-                      onChange={(e) => setAiReply(e.target.value)}
-                      style={{ width: '100%', border: 'none', background: 'transparent', color: 'var(--blue-800)', fontSize: 12, resize: 'vertical', minHeight: 160, outline: 'none', fontFamily: 'var(--font)', lineHeight: 1.5 }}
-                    />
+                    <>
+                      <div
+                        style={dragHandleStyle}
+                        onMouseDown={aiPreviewSize.startDrag}
+                        title="拖动调整高度"
+                      />
+                      <textarea
+                        value={aiReply}
+                        onChange={(e) => setAiReply(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: aiPreviewSize.height,
+                          border: 'none',
+                          background: 'transparent',
+                          color: 'var(--blue-800)',
+                          fontSize: 12,
+                          resize: 'none',
+                          outline: 'none',
+                          fontFamily: 'var(--font)',
+                          lineHeight: 1.5,
+                        }}
+                      />
+                    </>
                   )}
                 </div>
                 <div className="flex gap-8 mt-8">
@@ -581,14 +660,26 @@ export default function Conversations() {
                   </div>
                 )}
                 <div className="flex gap-8" style={{ alignItems: 'flex-end' }}>
-                  <textarea
-                    className="flex-1"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="输入消息... — 回车换行，按右侧按钮发送"
-                    rows={4}
-                    style={{ resize: 'vertical', minHeight: 80, fontFamily: 'var(--font)', fontSize: 13, lineHeight: 1.5 }}
-                  />
+                  <div className="flex-1" style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div
+                      style={dragHandleStyle}
+                      onMouseDown={humanInputSize.startDrag}
+                      title="拖动调整高度"
+                    />
+                    <textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="输入消息... — 回车换行，按右侧按钮发送"
+                      style={{
+                        width: '100%',
+                        height: humanInputSize.height,
+                        resize: 'none',
+                        fontFamily: 'var(--font)',
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                      }}
+                    />
+                  </div>
                   <button
                     className="btn-primary"
                     onClick={handleSend}
