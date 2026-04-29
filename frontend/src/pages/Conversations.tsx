@@ -524,21 +524,21 @@ export default function Conversations() {
             {/* AI Mode Input — visible whenever this conv is in AI mode */}
             {mode === 'ai' && (
               <div style={{ padding: '8px 16px 12px', background: 'var(--bg-primary)', flexShrink: 0 }}>
-                <div className="flex gap-8 items-center" style={{ marginBottom: 6 }}>
-                  <input
+                <div className="flex gap-8" style={{ marginBottom: 6, alignItems: 'flex-start' }}>
+                  <textarea
                     className="flex-1"
                     value={aiPrompt}
                     onChange={(e) => setAiPrompt(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && loadAiReply()}
-                    placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」...'
-                    style={{ fontSize: 12, padding: '5px 8px' }}
+                    placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」... — 回车换行，按按钮才生成'
+                    rows={2}
+                    style={{ fontSize: 12, padding: '5px 8px', resize: 'vertical', minHeight: 36, fontFamily: 'var(--font)', lineHeight: 1.5 }}
                   />
                   <button className="btn" onClick={loadAiReply} disabled={aiReplyLoading} style={{ fontSize: 11, padding: '5px 10px', whiteSpace: 'nowrap' }}>
                     {aiReply ? '重新生成' : '生成回复'}
                   </button>
                 </div>
-                <div className="field-label" style={{ marginBottom: 6 }}>AI 回复预览（发送前可编辑）：</div>
-                <div className="ai-preview">
+                <div className="field-label" style={{ marginBottom: 6 }}>AI 回复预览（发送前可编辑，可拖底部右下角调整高度）：</div>
+                <div className="ai-preview" style={{ display: 'flex', flexDirection: 'column' }}>
                   <div className="ai-preview-label">AI 生成内容</div>
                   {aiReplyLoading ? (
                     <div className="text-xs" style={{ padding: '4px 0' }}>正在生成...</div>
@@ -546,7 +546,7 @@ export default function Conversations() {
                     <textarea
                       value={aiReply}
                       onChange={(e) => setAiReply(e.target.value)}
-                      style={{ width: '100%', border: 'none', background: 'transparent', color: 'var(--blue-800)', fontSize: 12, resize: 'vertical', minHeight: 120, outline: 'none', fontFamily: 'var(--font)', lineHeight: 1.5 }}
+                      style={{ width: '100%', border: 'none', background: 'transparent', color: 'var(--blue-800)', fontSize: 12, resize: 'vertical', minHeight: 160, outline: 'none', fontFamily: 'var(--font)', lineHeight: 1.5 }}
                     />
                   )}
                 </div>
@@ -585,10 +585,9 @@ export default function Conversations() {
                     className="flex-1"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                    placeholder="输入消息..."
-                    rows={3}
-                    style={{ resize: 'vertical', minHeight: 40, fontFamily: 'var(--font)', fontSize: 13, lineHeight: 1.5 }}
+                    placeholder="输入消息... — 回车换行，按右侧按钮发送"
+                    rows={4}
+                    style={{ resize: 'vertical', minHeight: 80, fontFamily: 'var(--font)', fontSize: 13, lineHeight: 1.5 }}
                   />
                   <button
                     className="btn-primary"
