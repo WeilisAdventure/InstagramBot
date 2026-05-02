@@ -39,7 +39,10 @@ async def list_conversations(request: Request, db: AsyncSession = Depends(get_db
     if ig_connected and hasattr(ig_client, "get_user_profile"):
         now = time.time()
         any_updated = False
+        lookups_done = 0
         for conv in convs:
+            if lookups_done >= 2:   # max 2 API calls per list request
+                break
             if not conv.ig_user_id:
                 continue
             if conv.ig_profile_pic and conv.ig_username:
@@ -51,6 +54,7 @@ async def list_conversations(request: Request, db: AsyncSession = Depends(get_db
                 profile = await ig_client.get_user_profile(conv.ig_user_id)
             except Exception:
                 profile = None
+            lookups_done += 1
             if profile and (profile.get("username") or profile.get("profile_pic")):
                 if not conv.ig_username and profile.get("username"):
                     conv.ig_username = profile["username"]
