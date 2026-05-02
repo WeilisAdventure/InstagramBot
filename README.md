@@ -125,6 +125,7 @@ end to end.
 | File | What's in it |
 |---|---|
 | [`README.md`](README.md) (this file) | One-page tour |
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | 中文用户使用说明 — 给后台运营/客服管理者看的日常操作手册 |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System diagrams, AI reply flow, module layout, data model |
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | First-time server setup, domain + HTTPS, Meta App + webhook configuration |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Day-to-day playbook — token rotation, log inspection, knowledge updates, common error decoder |
