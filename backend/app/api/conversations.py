@@ -228,46 +228,36 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     history = [{"role": m.role, "content": m.content} for m in messages if m.role in ("user", "assistant") and m.content and m.content.strip()]
 
     ai = request.app.state.ai_provider
-    # Sync model with current setting
+    # Always rebuild provider from latest DB settings so model/key changes
+    # take effect immediately without a server restart.
     from app.models.settings import SystemSettings
-    model_result = await db.execute(select(SystemSettings).where(SystemSettings.key == "ai_model"))
-    model_setting = model_result.scalar_one_or_none()
-    if model_setting:
-        from app.ai.factory import get_provider_for_model, create_provider_for_model
-        from app.config import settings as app_settings
-        current_model = model_setting.value
-        provider_result = await db.execute(select(SystemSettings).where(SystemSettings.key == "ai_model_provider"))
-        provider_setting = provider_result.scalar_one_or_none()
-        model_provider = provider_setting.value if provider_setting else ""
-        if get_provider_for_model(current_model, model_provider) != get_provider_for_model(getattr(ai, 'model', '')):
-            ck = await db.execute(select(SystemSettings).where(SystemSettings.key == "custom_api_key"))
-            cu = await db.execute(select(SystemSettings).where(SystemSettings.key == "custom_base_url"))
-            db_ak = await db.execute(select(SystemSettings).where(SystemSettings.key == "anthropic_api_key"))
-            db_ok = await db.execute(select(SystemSettings).where(SystemSettings.key == "openai_api_key"))
-            db_gk = await db.execute(select(SystemSettings).where(SystemSettings.key == "google_api_key"))
-            ck_s, cu_s = ck.scalar_one_or_none(), cu.scalar_one_or_none()
-            db_ak_s = db_ak.scalar_one_or_none()
-            db_ok_s = db_ok.scalar_one_or_none()
-            db_gk_s = db_gk.scalar_one_or_none()
-            custom_key = ck_s.value if ck_s else ""
-            custom_url = cu_s.value if cu_s else ""
-            # DB-stored keys take priority over .env values
-            a_key = (db_ak_s.value if db_ak_s else "") or app_settings.anthropic_api_key
-            o_key = (db_ok_s.value if db_ok_s else "") or app_settings.openai_api_key
-            g_key = (db_gk_s.value if db_gk_s else "") or app_settings.google_api_key
-            ai = create_provider_for_model(
-                model_id=current_model,
-                anthropic_key=a_key,
-                openai_key=o_key,
-                openai_base_url=app_settings.openai_base_url,
-                google_key=g_key,
-                provider_override=model_provider,
-                custom_api_key=custom_key,
-                custom_base_url=custom_url,
-            )
-            request.app.state.ai_provider = ai
-        else:
-            ai.model = current_model
+    from app.ai.factory import create_provider_for_model
+    from app.config import settings as app_settings
+
+    async def _db_val(key: str) -> str:
+        r = await db.execute(select(SystemSettings).where(SystemSettings.key == key))
+        s = r.scalar_one_or_none()
+        return s.value if s else ""
+
+    current_model  = (await _db_val("ai_model")) or getattr(ai, "model", app_settings.ai_model)
+    model_provider = await _db_val("ai_model_provider")
+    a_key  = (await _db_val("anthropic_api_key")) or app_settings.anthropic_api_key
+    o_key  = (await _db_val("openai_api_key"))    or app_settings.openai_api_key
+    g_key  = (await _db_val("google_api_key"))    or app_settings.google_api_key
+    custom_key = await _db_val("custom_api_key")
+    custom_url = await _db_val("custom_base_url")
+
+    ai = create_provider_for_model(
+        model_id=current_model,
+        anthropic_key=a_key,
+        openai_key=o_key,
+        openai_base_url=app_settings.openai_base_url,
+        google_key=g_key,
+        provider_override=model_provider,
+        custom_api_key=custom_key,
+        custom_base_url=custom_url,
+    )
+    request.app.state.ai_provider = ai
     # Get last user message
     last_user_msg = ""
     for m in reversed(messages):
