@@ -480,7 +480,7 @@ export default function Conversations() {
               <div className="list-item-meta">
                 <span className="text-xs">{timeAgo(c.updated_at)}</span>
                 <div className="flex items-center gap-6">
-                  {!c.is_resolved && <span className="unread-dot" />}
+                  {c.last_message_role === 'user' && <span className="unread-dot" />}
                   {c.last_message_role === 'assistant' && (
                     c.last_message_is_ai ? (
                       <span className="tag-pill tag-ai">AI</span>
