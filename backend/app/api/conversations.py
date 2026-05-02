@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -207,10 +208,26 @@ async def assist_input(conv_id: int, data: AssistRequest, request: Request):
 
 @router.post("/{conv_id}/translate")
 async def translate_message(conv_id: int, data: dict, request: Request):
-    """Translate a message text."""
-    translator = request.app.state.translator
-    result = await translator.translate_message(data.get("text", ""))
-    return result
+    """Translate a message text using free Google Translate."""
+    text = data.get("text", "")
+    if not text:
+        return {"original": text, "translated": text, "source_lang": "en"}
+    import re
+    has_cjk = bool(re.search(r'[一-鿿㐀-䶿]', text))
+    source_lang = "zh" if has_cjk else "en"
+    target_lang = "en" if source_lang == "zh" else "zh-CN"
+    try:
+        from deep_translator import GoogleTranslator
+        translated = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: GoogleTranslator(source="auto", target=target_lang).translate(text)
+        )
+        return {"original": text, "translated": translated or text, "source_lang": source_lang}
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Free translate failed: {e}, falling back to AI")
+        translator = request.app.state.translator
+        return await translator.translate_message(text)
 
 
 class GenerateReplyRequest(BaseModel):
