@@ -843,10 +843,7 @@ export default function Conversations() {
                       <div
                         style={innerSplitterStyle}
                         onMouseDown={humanAssistSize.startDrag}
-                        title="上下拖动：调整翻译内容区与输入框的比例"
-                      >
-                        ⇅ 拖动调整两窗口比例
-                      </div>
+                      />
                     </>
                   )}
                   <textarea
