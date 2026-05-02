@@ -238,21 +238,23 @@ export default function Settings() {
                 <div className="flex items-center gap-8">
                   <span style={{ fontSize: 12, minWidth: 60 }}>API Key</span>
                   <input
-                    type="password"
+                    type="text"
+                    autoComplete="off"
                     placeholder="填入第三方平台的 API Key"
                     style={{ flex: 1, fontSize: 12, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 8px' }}
-                    value={settings.custom_api_key}
-                    onChange={(e) => update({ custom_api_key: e.target.value })}
+                    defaultValue={settings.custom_api_key}
+                    onBlur={(e) => { if (e.target.value !== settings.custom_api_key) update({ custom_api_key: e.target.value }); }}
                   />
                 </div>
                 <div className="flex items-center gap-8">
                   <span style={{ fontSize: 12, minWidth: 60 }}>API 地址</span>
                   <input
                     type="text"
+                    autoComplete="off"
                     placeholder="如 https://api.deepseek.com"
                     style={{ flex: 1, fontSize: 12, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 8px' }}
-                    value={settings.custom_base_url}
-                    onChange={(e) => update({ custom_base_url: e.target.value })}
+                    defaultValue={settings.custom_base_url}
+                    onBlur={(e) => { if (e.target.value !== settings.custom_base_url) update({ custom_base_url: e.target.value }); }}
                   />
                 </div>
               </div>

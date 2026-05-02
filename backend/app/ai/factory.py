@@ -62,17 +62,17 @@ def create_provider_for_model(
     provider = get_provider_for_model(model_id, provider_override)
 
     if provider == "openai_compatible":
+        # custom_api_key / custom_base_url are ONLY used for openai_compatible
         from app.ai.openai_provider import OpenAIProvider
         key = custom_api_key or openai_key
         url = custom_base_url or openai_base_url or None
         return OpenAIProvider(api_key=key, model=model_id, base_url=url)
     elif provider == "openai":
         from app.ai.openai_provider import OpenAIProvider
-        key = custom_api_key or openai_key
-        return OpenAIProvider(api_key=key, model=model_id, base_url=openai_base_url or None)
+        return OpenAIProvider(api_key=openai_key, model=model_id, base_url=openai_base_url or None)
     elif provider == "google":
         from app.ai.google_provider import GoogleProvider
-        return GoogleProvider(api_key=custom_api_key or google_key, model=model_id)
+        return GoogleProvider(api_key=google_key, model=model_id)
     else:
         from app.ai.claude_provider import ClaudeProvider
-        return ClaudeProvider(api_key=custom_api_key or anthropic_key, model=model_id)
+        return ClaudeProvider(api_key=anthropic_key, model=model_id)
