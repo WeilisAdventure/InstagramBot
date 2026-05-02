@@ -352,8 +352,14 @@ export default function Conversations() {
     setAiReplyLoading(true);
     try {
       const res = await generateAIReply(detail.id, aiPrompt || undefined);
-      setAiReply(res.reply);
-    } catch {
+      if (res.reply) {
+        setAiReply(res.reply);
+      } else {
+        showToast('AI 返回了空回复，请重试', 'warn');
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || e?.message || '生成失败';
+      showToast(`生成回复失败：${msg}`, 'error');
       setAiReply('');
     }
     setAiReplyLoading(false);
