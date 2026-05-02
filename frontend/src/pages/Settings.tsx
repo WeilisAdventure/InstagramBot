@@ -156,15 +156,17 @@ export default function Settings() {
             const provider = PRESET_MODELS.includes(settings.ai_model)
               ? (settings.ai_model.startsWith('claude') ? 'anthropic' : settings.ai_model.startsWith('gemini') ? 'google' : 'openai')
               : settings.ai_model_provider;
+            const keyStyle = { flex: 1, maxWidth: 260, fontSize: 12, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 8px' };
             if (provider === 'anthropic') return (
               <div className="card-row">
                 <span className="card-key">Anthropic API Key</span>
                 <input
-                  type="password"
+                  type="text"
+                  autoComplete="off"
                   placeholder="sk-ant-..."
-                  style={{ flex: 1, maxWidth: 260, fontSize: 12, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 8px' }}
-                  value={settings.anthropic_api_key}
-                  onChange={(e) => update({ anthropic_api_key: e.target.value })}
+                  style={keyStyle}
+                  defaultValue={settings.anthropic_api_key}
+                  onBlur={(e) => { if (e.target.value !== settings.anthropic_api_key) update({ anthropic_api_key: e.target.value }); }}
                 />
               </div>
             );
@@ -172,11 +174,12 @@ export default function Settings() {
               <div className="card-row">
                 <span className="card-key">OpenAI API Key</span>
                 <input
-                  type="password"
+                  type="text"
+                  autoComplete="off"
                   placeholder="sk-..."
-                  style={{ flex: 1, maxWidth: 260, fontSize: 12, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 8px' }}
-                  value={settings.openai_api_key}
-                  onChange={(e) => update({ openai_api_key: e.target.value })}
+                  style={keyStyle}
+                  defaultValue={settings.openai_api_key}
+                  onBlur={(e) => { if (e.target.value !== settings.openai_api_key) update({ openai_api_key: e.target.value }); }}
                 />
               </div>
             );
@@ -184,11 +187,12 @@ export default function Settings() {
               <div className="card-row">
                 <span className="card-key">Google API Key</span>
                 <input
-                  type="password"
+                  type="text"
+                  autoComplete="off"
                   placeholder="AIza..."
-                  style={{ flex: 1, maxWidth: 260, fontSize: 12, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 8px' }}
-                  value={settings.google_api_key}
-                  onChange={(e) => update({ google_api_key: e.target.value })}
+                  style={keyStyle}
+                  defaultValue={settings.google_api_key}
+                  onBlur={(e) => { if (e.target.value !== settings.google_api_key) update({ google_api_key: e.target.value }); }}
                 />
               </div>
             );
