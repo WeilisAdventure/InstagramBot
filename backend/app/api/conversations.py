@@ -242,15 +242,25 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
         if get_provider_for_model(current_model, model_provider) != get_provider_for_model(getattr(ai, 'model', '')):
             ck = await db.execute(select(SystemSettings).where(SystemSettings.key == "custom_api_key"))
             cu = await db.execute(select(SystemSettings).where(SystemSettings.key == "custom_base_url"))
+            db_ak = await db.execute(select(SystemSettings).where(SystemSettings.key == "anthropic_api_key"))
+            db_ok = await db.execute(select(SystemSettings).where(SystemSettings.key == "openai_api_key"))
+            db_gk = await db.execute(select(SystemSettings).where(SystemSettings.key == "google_api_key"))
             ck_s, cu_s = ck.scalar_one_or_none(), cu.scalar_one_or_none()
+            db_ak_s = db_ak.scalar_one_or_none()
+            db_ok_s = db_ok.scalar_one_or_none()
+            db_gk_s = db_gk.scalar_one_or_none()
             custom_key = ck_s.value if ck_s else ""
             custom_url = cu_s.value if cu_s else ""
+            # DB-stored keys take priority over .env values
+            a_key = (db_ak_s.value if db_ak_s else "") or app_settings.anthropic_api_key
+            o_key = (db_ok_s.value if db_ok_s else "") or app_settings.openai_api_key
+            g_key = (db_gk_s.value if db_gk_s else "") or app_settings.google_api_key
             ai = create_provider_for_model(
                 model_id=current_model,
-                anthropic_key=app_settings.anthropic_api_key,
-                openai_key=app_settings.openai_api_key,
+                anthropic_key=a_key,
+                openai_key=o_key,
                 openai_base_url=app_settings.openai_base_url,
-                google_key=app_settings.google_api_key,
+                google_key=g_key,
                 provider_override=model_provider,
                 custom_api_key=custom_key,
                 custom_base_url=custom_url,

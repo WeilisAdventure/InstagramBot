@@ -151,6 +151,49 @@ export default function Settings() {
               )}
             </select>
           </div>
+          {/* API Key input — shown based on current model provider */}
+          {(() => {
+            const provider = PRESET_MODELS.includes(settings.ai_model)
+              ? (settings.ai_model.startsWith('claude') ? 'anthropic' : settings.ai_model.startsWith('gemini') ? 'google' : 'openai')
+              : settings.ai_model_provider;
+            if (provider === 'anthropic') return (
+              <div className="card-row">
+                <span className="card-key">Anthropic API Key</span>
+                <input
+                  type="password"
+                  placeholder="sk-ant-..."
+                  style={{ flex: 1, maxWidth: 260, fontSize: 12, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 8px' }}
+                  value={settings.anthropic_api_key}
+                  onChange={(e) => update({ anthropic_api_key: e.target.value })}
+                />
+              </div>
+            );
+            if (provider === 'openai') return (
+              <div className="card-row">
+                <span className="card-key">OpenAI API Key</span>
+                <input
+                  type="password"
+                  placeholder="sk-..."
+                  style={{ flex: 1, maxWidth: 260, fontSize: 12, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 8px' }}
+                  value={settings.openai_api_key}
+                  onChange={(e) => update({ openai_api_key: e.target.value })}
+                />
+              </div>
+            );
+            if (provider === 'google') return (
+              <div className="card-row">
+                <span className="card-key">Google API Key</span>
+                <input
+                  type="password"
+                  placeholder="AIza..."
+                  style={{ flex: 1, maxWidth: 260, fontSize: 12, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 8px' }}
+                  value={settings.google_api_key}
+                  onChange={(e) => update({ google_api_key: e.target.value })}
+                />
+              </div>
+            );
+            return null;
+          })()}
           <div className="card-row" style={{ flexWrap: 'wrap', gap: 8 }}>
             <span className="card-key">自定义模型</span>
             <div className="flex items-center gap-8" style={{ flexWrap: 'wrap' }}>

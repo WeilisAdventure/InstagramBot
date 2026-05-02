@@ -64,6 +64,9 @@ export interface Settings {
   ig_api_version: string;
   ai_model: string;
   ai_model_provider: string;
+  anthropic_api_key: string;
+  openai_api_key: string;
+  google_api_key: string;
   custom_api_key: string;
   custom_base_url: string;
   reply_delay_seconds: number;
