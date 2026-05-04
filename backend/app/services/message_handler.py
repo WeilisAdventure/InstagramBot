@@ -146,30 +146,30 @@ class MessageHandler:
             logger.info(f"Conversation {conv_id} is in human mode, skipping AI reply")
             return
 
-        # Phase 2: Generate and send AI reply in a new session
-        # Switch provider if model changed to a different vendor
-        current_model = await self._get_setting_value("ai_model", "claude-sonnet-4-20250514")
-        model_provider = await self._get_setting_value("ai_model_provider", "")
-        from app.ai.factory import get_provider_for_model, create_provider_for_model
+        # Phase 2: Generate and send AI reply
+        # Always rebuild provider from latest DB settings so model/key
+        # changes take effect immediately without restarting the service.
+        from app.ai.factory import create_provider_for_model
         from app.config import settings as app_settings
-        current_provider = get_provider_for_model(current_model, model_provider)
-        ai_provider_type = get_provider_for_model(getattr(self.ai, 'model', ''))
-        if current_provider != ai_provider_type:
-            custom_key = await self._get_setting_value("custom_api_key", "")
-            custom_url = await self._get_setting_value("custom_base_url", "")
-            self.ai = create_provider_for_model(
-                model_id=current_model,
-                anthropic_key=app_settings.anthropic_api_key,
-                openai_key=app_settings.openai_api_key,
-                openai_base_url=app_settings.openai_base_url,
-                google_key=app_settings.google_api_key,
-                provider_override=model_provider,
-                custom_api_key=custom_key,
-                custom_base_url=custom_url,
-            )
-            logger.info(f"Switched AI provider to {current_provider} ({current_model})")
-        else:
-            self.ai.model = current_model
+
+        current_model  = await self._get_setting_value("ai_model", "claude-sonnet-4-20250514")
+        model_provider = await self._get_setting_value("ai_model_provider", "")
+        a_key  = (await self._get_setting_value("anthropic_api_key", "")) or app_settings.anthropic_api_key
+        o_key  = (await self._get_setting_value("openai_api_key", ""))    or app_settings.openai_api_key
+        g_key  = (await self._get_setting_value("google_api_key", ""))    or app_settings.google_api_key
+        custom_key = await self._get_setting_value("custom_api_key", "")
+        custom_url = await self._get_setting_value("custom_base_url", "")
+
+        self.ai = create_provider_for_model(
+            model_id=current_model,
+            anthropic_key=a_key,
+            openai_key=o_key,
+            openai_base_url=app_settings.openai_base_url,
+            google_key=g_key,
+            provider_override=model_provider,
+            custom_api_key=custom_key,
+            custom_base_url=custom_url,
+        )
 
         async with async_session() as db:
             history = await self._get_conversation_history(db, conv_id)
