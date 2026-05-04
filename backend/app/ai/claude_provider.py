@@ -26,7 +26,7 @@ class ClaudeProvider(AIProvider):
 
         response = await self.client.messages.create(
             model=self.model,
-            max_tokens=500,
+            max_tokens=1500,
             system=system,
             messages=messages,
         )
@@ -51,7 +51,7 @@ class ClaudeProvider(AIProvider):
         try:
             response = await self.client.messages.create(
                 model=self.model,
-                max_tokens=500,
+                max_tokens=1500,
                 messages=[{"role": "user", "content": prompt}],
             )
             translated = response.content[0].text.strip()
@@ -75,7 +75,7 @@ class ClaudeProvider(AIProvider):
         try:
             response = await self.client.messages.create(
                 model=self.model,
-                max_tokens=600,
+                max_tokens=1500,
                 messages=[{"role": "user", "content": prompt}],
             )
             return _parse_assist_json(response.content[0].text, text)

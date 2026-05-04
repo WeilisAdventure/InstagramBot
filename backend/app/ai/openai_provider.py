@@ -28,7 +28,7 @@ class OpenAIProvider(AIProvider):
 
         response = await self.client.chat.completions.create(
             model=self.model,
-            max_completion_tokens=500,
+            max_completion_tokens=1500,
             messages=messages,
         )
         return response.choices[0].message.content or ""
@@ -46,7 +46,7 @@ class OpenAIProvider(AIProvider):
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
-                max_completion_tokens=500,
+                max_completion_tokens=1500,
                 messages=[{"role": "user", "content": prompt}],
             )
             translated = (response.choices[0].message.content or "").strip()
@@ -70,7 +70,7 @@ class OpenAIProvider(AIProvider):
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
-                max_completion_tokens=600,
+                max_completion_tokens=1500,
                 messages=[{"role": "user", "content": prompt}],
             )
             from app.ai.base import _parse_assist_json

@@ -38,7 +38,7 @@ class GoogleProvider(AIProvider):
 
         response = await model.generate_content_async(
             contents,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=500),
+            generation_config=genai.types.GenerationConfig(max_output_tokens=2000),
         )
         return response.text or ""
 
