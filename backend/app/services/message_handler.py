@@ -190,18 +190,13 @@ class MessageHandler:
 
         # First-message detection: history excluding the just-saved user msg
         prior = [m for m in history if not (m["role"] == "user" and m["content"] == (msg.text or ""))]
-        first_extra: str | None = None
-        if len(prior) == 0:
-            first_extra = (
-                "This is the customer's FIRST message. You MUST start your reply by "
-                "briefly introducing yourself as Achilles Chen (A.C.), Manager at "
-                "FleetNow Delivery, then ask whether they need personal or business "
-                "delivery (pricing differs by volume), and emphasize our unlimited-"
-                "distance same-day flat-rate service."
-            )
+        is_first = len(prior) == 0
+
+        from app.ai.prompt import build_reply_directive
+        auto_extra = build_reply_directive(is_first=is_first, for_draft=False)
 
         try:
-            reply_text = await self.ai.generate_reply(msg.text or "", history, extra_prompt=first_extra)
+            reply_text = await self.ai.generate_reply(msg.text or "", history, extra_prompt=auto_extra)
         except Exception as e:
             logger.error(f"AI reply failed: {e}")
             async with async_session() as db:

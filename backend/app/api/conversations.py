@@ -306,33 +306,8 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     prior = [m for m in history if not (m["role"] == "user" and m["content"] == last_user_msg)]
     is_first = len(prior) == 0
 
-    # Manual generate-reply ALWAYS produces a Chinese draft for manager review.
-    # Translation to the customer's language happens at send time per
-    # translation_strategy setting (see /send endpoint).
-    draft_directive = (
-        "OUTPUT LANGUAGE OVERRIDE: Reply in Simplified Chinese (中文) ONLY. "
-        "This is a draft that the manager will review before sending; do NOT "
-        "include any English text in your reply. The system will translate "
-        "to the customer's language separately when the manager sends it."
-    )
-    final_extra = draft_directive
-    if is_first:
-        final_extra += (
-            "\n\n这是客户的第一条消息。回复必须以自我介绍开头：你是 Achilles Chen "
-            "(A.C.)，FleetNow Delivery 的 Manager。然后询问对方是个人还是商家配送"
-            "（价格按月单量不同），并强调我们的同城无距离限制同日达统一价服务。"
-        )
-    else:
-        final_extra += (
-            "\n\n这是后续消息（不是首次）。**严禁重复 conversation history 里你已经"
-            "说过的内容**：\n"
-            "- 不要再自我介绍\n"
-            "- 不要再罗列已提到的优势（包括但不限于：统一费率、同日达、无距离限制、专业服务）。"
-            "如果历史里已经出现过 bullet 列表的优势条目（任何语言版本），本条回复**绝对不能"
-            "再写第二个 bullet 列表的优势**，改用普通句子简短回应即可。\n"
-            "- 不要再问已经问过的限定问题\n"
-            "仔细看历史记录，仅针对客户的最新消息作出回应或推进对话。"
-        )
+    from app.ai.prompt import build_reply_directive
+    final_extra = build_reply_directive(is_first=is_first, for_draft=True)
     if extra_prompt:
         final_extra += f"\n\n{extra_prompt}"
 
