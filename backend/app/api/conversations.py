@@ -337,8 +337,7 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
         final_extra += f"\n\n{extra_prompt}"
 
     import logging as _log
-    _log.getLogger("debug.prompt").setLevel(_log.DEBUG)
-    _log.getLogger("debug.prompt").debug(
+    _log.getLogger(__name__).info(
         "\n===SYSTEM PROMPT===\n%s\n===EXTRA PROMPT===\n%s\n===HISTORY===\n%s\n===USER MSG===\n%s",
         ai.system_prompt, final_extra, history, last_user_msg
     )
