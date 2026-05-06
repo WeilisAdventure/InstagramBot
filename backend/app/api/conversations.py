@@ -311,12 +311,6 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     if extra_prompt:
         final_extra += f"\n\n{extra_prompt}"
 
-    import logging as _log
-    _log.getLogger(__name__).info(
-        "\n===SYSTEM PROMPT===\n%s\n===EXTRA PROMPT===\n%s\n===HISTORY===\n%s\n===USER MSG===\n%s",
-        ai.system_prompt, final_extra, history, last_user_msg
-    )
-
     reply = await ai.generate_reply(last_user_msg, history, extra_prompt=final_extra)
 
     # Fire-and-forget: distill long-term preferences from this prompt hint
