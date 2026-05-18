@@ -64,7 +64,7 @@ async def extract_preferences(ai: AIProvider, user_prompt: str) -> list[str]:
         # would pollute things, so we call the underlying client where we can.
         text = await _raw_complete(ai, prompt)
     except Exception as e:
-        logger.warning(f"Preference extraction call failed: {e}")
+        logger.error(f"Preference extraction call failed: {e}")
         return []
 
     try:
@@ -100,9 +100,12 @@ async def _raw_complete(ai: AIProvider, prompt: str) -> str:
             messages=[{"role": "user", "content": prompt}],
         )
         return resp.choices[0].message.content or ""
-    # Google or unknown — fall back to translate_message hack: ask the
-    # provider to "translate" the prompt; not ideal but most providers will
-    # just answer. Skip: simpler to give up.
+    # Google Gemini
+    if hasattr(ai, "api_key") and hasattr(ai, "_get_model"):
+        import google.generativeai as genai
+        model = genai.GenerativeModel(model_name=getattr(ai, "model", "gemini-2.5-flash"))
+        resp = await model.generate_content_async(prompt)
+        return resp.text or ""
     raise RuntimeError("Unsupported provider for raw completion")
 
 
