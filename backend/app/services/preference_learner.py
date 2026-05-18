@@ -111,7 +111,9 @@ async def _raw_complete(ai: AIProvider, prompt: str) -> str:
 
 async def learn_from_prompt(ai: AIProvider, user_prompt: str) -> int:
     """Extract + persist new preferences. Returns count of new rows added."""
+    logger.info(f"learn_from_prompt called with: {user_prompt[:100]!r}")
     prefs = await extract_preferences(ai, user_prompt)
+    logger.info(f"extract_preferences returned: {prefs}")
     if not prefs:
         return 0
 
