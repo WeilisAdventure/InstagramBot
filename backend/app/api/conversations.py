@@ -238,6 +238,8 @@ class GenerateReplyRequest(BaseModel):
 async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Generate an AI reply preview without sending it."""
     extra_prompt = data.prompt
+    import logging as _lg
+    _lg.getLogger(__name__).info(f"generate_reply called: extra_prompt={extra_prompt!r}")
     conv = await db.get(Conversation, conv_id)
     if not conv:
         raise HTTPException(404, "Conversation not found")
