@@ -15,6 +15,7 @@ class Conversation(Base):
     trigger_rule_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("comment_trigger_rules.id"), nullable=True)
     mode: Mapped[str] = mapped_column(String(20), default="ai")  # "ai" | "human"
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_prompt_notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # accumulated per-conversation prompt notes
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

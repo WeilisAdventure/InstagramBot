@@ -50,6 +50,7 @@ export interface Conversation {
 
 export interface ConversationDetail extends Conversation {
   messages: Message[];
+  ai_prompt_notes: string | null;
 }
 
 export interface DashboardStats {

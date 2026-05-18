@@ -110,6 +110,7 @@ async def get_conversation(conv_id: int, db: AsyncSession = Depends(get_db)):
         "created_at": conv.created_at,
         "updated_at": conv.updated_at,
         "messages": [MessageResponse.model_validate(m) for m in messages],
+        "ai_prompt_notes": conv.ai_prompt_notes,
     }
     return ConversationDetail(**conv_data)
 
@@ -306,10 +307,24 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     prior = [m for m in history if not (m["role"] == "user" and m["content"] == last_user_msg)]
     is_first = len(prior) == 0
 
+    # Accumulate prompt notes for this conversation
+    if extra_prompt and extra_prompt.strip():
+        existing_notes = conv.ai_prompt_notes or ""
+        new_note = extra_prompt.strip()
+        # Avoid exact duplicate of the last note
+        existing_lines = [l.strip() for l in existing_notes.split("\n") if l.strip()]
+        if not existing_lines or existing_lines[-1] != new_note:
+            existing_lines.append(new_note)
+        conv.ai_prompt_notes = "\n".join(existing_lines)
+        conv.updated_at = conv.updated_at  # keep updated_at unchanged
+        await db.commit()
+
+    # Build combined extra: directive + all accumulated notes
     from app.ai.prompt import build_reply_directive
     final_extra = build_reply_directive(is_first=is_first, for_draft=True)
-    if extra_prompt:
-        final_extra += f"\n\n{extra_prompt}"
+    all_notes = (conv.ai_prompt_notes or "").strip()
+    if all_notes:
+        final_extra += f"\n\nAdditional style instructions from the manager (apply all of them):\n{all_notes}"
 
     reply = await ai.generate_reply(last_user_msg, history, extra_prompt=final_extra)
 
@@ -319,4 +334,15 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
         from app.services.preference_learner import learn_from_prompt
         asyncio.create_task(learn_from_prompt(ai, extra_prompt.strip()))
 
-    return {"reply": reply}
+    return {"reply": reply, "prompt_notes": conv.ai_prompt_notes or ""}
+
+
+@router.delete("/{conv_id}/prompt-notes")
+async def clear_prompt_notes(conv_id: int, db: AsyncSession = Depends(get_db)):
+    """Clear accumulated prompt notes for a conversation."""
+    conv = await db.get(Conversation, conv_id)
+    if not conv:
+        raise HTTPException(404, "Conversation not found")
+    conv.ai_prompt_notes = None
+    await db.commit()
+    return {"ok": True}

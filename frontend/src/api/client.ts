@@ -75,7 +75,9 @@ export const assistInput = (id: number, text: string) =>
 export const translateMessage = (convId: number, text: string) =>
   request<{ original: string; translated: string; source_lang: string }>(`/conversations/${convId}/translate`, { method: 'POST', body: JSON.stringify({ text }) });
 export const generateAIReply = (convId: number, prompt?: string) =>
-  request<{ reply: string }>(`/conversations/${convId}/generate-reply`, { method: 'POST', body: JSON.stringify({ prompt: prompt || '' }) });
+  request<{ reply: string; prompt_notes: string }>(`/conversations/${convId}/generate-reply`, { method: 'POST', body: JSON.stringify({ prompt: prompt || '' }) });
+export const clearPromptNotes = (convId: number) =>
+  request<{ ok: boolean }>(`/conversations/${convId}/prompt-notes`, { method: 'DELETE' });
 
 // Settings
 export const getSettings = () => request<import('../types').Settings>('/settings');

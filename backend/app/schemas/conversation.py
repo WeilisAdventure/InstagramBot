@@ -34,6 +34,7 @@ class ConversationResponse(BaseModel):
 
 class ConversationDetail(ConversationResponse):
     messages: list[MessageResponse] = []
+    ai_prompt_notes: str | None = None
 
 
 class SendMessageRequest(BaseModel):

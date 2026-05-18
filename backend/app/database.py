@@ -26,6 +26,7 @@ async def init_db():
         # does not handle for ALTERs). Each entry: (table, column, ddl).
         migrations = [
             ("comment_events", "permalink", "TEXT"),
+            ("conversations", "ai_prompt_notes", "TEXT"),
         ]
         for table, column, ddl in migrations:
             res = await conn.execute(_sql_text(f"PRAGMA table_info({table})"))

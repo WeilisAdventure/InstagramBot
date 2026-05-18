@@ -9,6 +9,7 @@ import {
   assistInput,
   translateMessage,
   generateAIReply,
+  clearPromptNotes,
 } from '../api/client';
 import type { Conversation, ConversationDetail, AssistResult, Settings } from '../types';
 
@@ -202,6 +203,7 @@ export default function Conversations() {
   const [aiReply, setAiReply] = useState('');
   const [aiReplyLoading, setAiReplyLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [promptNotes, setPromptNotes] = useState<string>('');
   const [toast, setToast] = useState<{ text: string; type: 'info' | 'warn' | 'error' } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -298,6 +300,7 @@ export default function Conversations() {
     getConversation(selectedId).then((data) => {
       setDetail(data);
       setMode(data.mode as 'ai' | 'human');
+      setPromptNotes(data.ai_prompt_notes || '');
     }).catch(() => {
       setSelectedId(null);
       setDetail(null);
@@ -344,6 +347,7 @@ export default function Conversations() {
     setTranslations(new Map());
     setAiReply('');
     setAiPrompt('');
+    setPromptNotes('');
     setToast(null);
   };
 
@@ -354,6 +358,8 @@ export default function Conversations() {
       const res = await generateAIReply(detail.id, aiPrompt || undefined);
       if (res.reply) {
         setAiReply(res.reply);
+        setAiPrompt('');
+        if (res.prompt_notes !== undefined) setPromptNotes(res.prompt_notes);
       } else {
         showToast('AI 返回了空回复，请重试', 'warn');
       }
@@ -363,6 +369,13 @@ export default function Conversations() {
       setAiReply('');
     }
     setAiReplyLoading(false);
+  };
+
+  const handleClearPromptNotes = async () => {
+    if (!detail) return;
+    await clearPromptNotes(detail.id);
+    setPromptNotes('');
+    showToast('已清空累积指令', 'info');
   };
 
   const handleModeSwitch = async (next: 'ai' | 'human') => {
@@ -717,6 +730,22 @@ export default function Conversations() {
                       {aiReplyLoading ? '生成中...' : aiReply ? '重新生成' : '生成回复'}
                     </button>
                   </div>
+
+                  {/* Accumulated prompt notes indicator */}
+                  {promptNotes && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '3px 0', flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flex: 1, lineHeight: 1.5 }}>
+                        📌 已累积 {promptNotes.split('\n').filter(Boolean).length} 条指令：{promptNotes.split('\n').filter(Boolean).join(' · ')}
+                      </span>
+                      <button
+                        className="btn"
+                        onClick={handleClearPromptNotes}
+                        style={{ fontSize: 10, padding: '2px 7px', flexShrink: 0, color: 'var(--text-tertiary)' }}
+                      >
+                        清空
+                      </button>
+                    </div>
+                  )}
 
                   {/* Inner drag — redistribute between prompt and preview */}
                   <div
