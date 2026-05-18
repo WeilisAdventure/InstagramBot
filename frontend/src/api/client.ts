@@ -68,8 +68,8 @@ export const getConversations = () => request<import('../types').Conversation[]>
 export const getConversation = (id: number) => request<import('../types').ConversationDetail>(`/conversations/${id}`);
 export const updateConversationMode = (id: number, mode: string) =>
   request<{ ok: boolean }>(`/conversations/${id}/mode`, { method: 'PATCH', body: JSON.stringify({ mode }) });
-export const sendMessage = (id: number, text: string, is_ai_generated = false) =>
-  request<import('../types').Message & { ig_sent: boolean; ig_error: string }>(`/conversations/${id}/send`, { method: 'POST', body: JSON.stringify({ text, is_ai_generated }) });
+export const sendMessage = (id: number, text: string, is_ai_generated = false, skip_translation = false) =>
+  request<import('../types').Message & { ig_sent: boolean; ig_error: string }>(`/conversations/${id}/send`, { method: 'POST', body: JSON.stringify({ text, is_ai_generated, skip_translation }) });
 export const assistInput = (id: number, text: string) =>
   request<import('../types').AssistResult>(`/conversations/${id}/assist`, { method: 'POST', body: JSON.stringify({ text }) });
 export const translateMessage = (convId: number, text: string) =>

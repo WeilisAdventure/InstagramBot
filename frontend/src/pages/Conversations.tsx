@@ -204,6 +204,8 @@ export default function Conversations() {
   const [aiReplyLoading, setAiReplyLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [promptNotes, setPromptNotes] = useState<string>('');
+  const [aiTranslation, setAiTranslation] = useState('');
+  const [aiTranslating, setAiTranslating] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: 'info' | 'warn' | 'error' } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -348,6 +350,7 @@ export default function Conversations() {
     setAiReply('');
     setAiPrompt('');
     setPromptNotes('');
+    setAiTranslation('');
     setToast(null);
   };
 
@@ -408,12 +411,32 @@ export default function Conversations() {
     setSending(false);
   };
 
+  const handleTranslateAiReply = async () => {
+    if (!detail || !aiReply.trim()) return;
+    setAiTranslating(true);
+    try {
+      const res = await translateMessage(detail.id, aiReply);
+      setAiTranslation(res.translated);
+    } catch {
+      showToast('翻译失败，请重试', 'error');
+    }
+    setAiTranslating(false);
+  };
+
   const handleSendAiReply = async () => {
     if (!detail || !aiReply.trim()) return;
     setSending(true);
     try {
-      const res = await sendMessage(detail.id, aiReply, true);
+      let textToSend = aiReply;
+      let skipTranslation = false;
+      if (aiTranslation.trim()) {
+        // Use the already-translated (and possibly edited) English text
+        textToSend = aiTranslation;
+        skipTranslation = true;
+      }
+      const res = await sendMessage(detail.id, textToSend, true, skipTranslation);
       setAiReply('');
+      setAiTranslation('');
       if (!res.ig_sent) {
         showToast('AI 回复已保存，但未能发送到 Instagram', 'warn');
       }
@@ -755,18 +778,70 @@ export default function Conversations() {
                   >
                   </div>
 
-                  {/* Preview section — label + scroll/edit area */}
-                  <div
-                    className="ai-preview"
-                    style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
-                  >
-                    <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 生成内容（发送前可编辑）</div>
-                    {aiReplyLoading ? (
-                      <div className="text-xs" style={{ padding: '4px 0' }}>正在生成...</div>
-                    ) : (
+                  {/* Preview section — two columns: Chinese | English translation */}
+                  <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 6 }}>
+                    {/* Left: Chinese draft */}
+                    <div
+                      className="ai-preview"
+                      style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+                    >
+                      <div className="ai-preview-label" style={{ flexShrink: 0 }}>AI 中文草稿</div>
+                      {aiReplyLoading ? (
+                        <div className="text-xs" style={{ padding: '4px 0' }}>正在生成...</div>
+                      ) : (
+                        <textarea
+                          value={aiReply}
+                          onChange={(e) => setAiReply(e.target.value)}
+                          style={{
+                            width: '100%',
+                            flex: 1,
+                            minHeight: 0,
+                            border: 'none',
+                            background: 'transparent',
+                            color: 'var(--blue-800)',
+                            fontSize: 12,
+                            resize: 'none',
+                            outline: 'none',
+                            fontFamily: 'var(--font)',
+                            lineHeight: 1.5,
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Translate button column */}
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flexShrink: 0 }}>
+                      <button
+                        className="btn"
+                        onClick={handleTranslateAiReply}
+                        disabled={aiTranslating || !aiReply.trim()}
+                        style={{ fontSize: 11, padding: '5px 8px', writingMode: 'horizontal-tb' }}
+                        title="翻译中文草稿为英文"
+                      >
+                        {aiTranslating ? '...' : '译 →'}
+                      </button>
+                    </div>
+
+                    {/* Right: English translation */}
+                    <div
+                      className="ai-preview"
+                      style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
+                    >
+                      <div className="ai-preview-label" style={{ flexShrink: 0 }}>
+                        英文译文
+                        {aiTranslation && (
+                          <span
+                            style={{ marginLeft: 6, fontSize: 10, color: 'var(--text-tertiary)', cursor: 'pointer' }}
+                            onClick={() => setAiTranslation('')}
+                          >
+                            ✕ 清空
+                          </span>
+                        )}
+                      </div>
                       <textarea
-                        value={aiReply}
-                        onChange={(e) => setAiReply(e.target.value)}
+                        value={aiTranslation}
+                        onChange={(e) => setAiTranslation(e.target.value)}
+                        placeholder="点「译 →」生成，或直接输入英文..."
                         style={{
                           width: '100%',
                           flex: 1,
@@ -781,7 +856,7 @@ export default function Conversations() {
                           lineHeight: 1.5,
                         }}
                       />
-                    )}
+                    </div>
                   </div>
                 </div>
 

@@ -40,6 +40,7 @@ class ConversationDetail(ConversationResponse):
 class SendMessageRequest(BaseModel):
     text: str
     is_ai_generated: bool = False
+    skip_translation: bool = False  # True when text is already translated
 
 
 class AssistRequest(BaseModel):
