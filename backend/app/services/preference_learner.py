@@ -96,7 +96,7 @@ async def _raw_complete(ai: AIProvider, prompt: str) -> str:
         # OpenAI
         resp = await ai.client.chat.completions.create(
             model=getattr(ai, "model", "gpt-4o-mini"),
-            max_tokens=300,
+            max_completion_tokens=300,
             messages=[{"role": "user", "content": prompt}],
         )
         return resp.choices[0].message.content or ""
