@@ -37,7 +37,6 @@ async def list_conversations(request: Request, db: AsyncSession = Depends(get_db
     # dead and every call would 400 — wait until the manager refreshes it).
     ig_client = getattr(request.app.state, "ig_client", None)
     ig_connected = bool(ig_client and getattr(ig_client, "connected", False))
-    import logging as _cl; _cl.getLogger(__name__).info(f"list_conversations: ig_connected={ig_connected} has_profile={hasattr(ig_client, 'get_user_profile') if ig_client else False}")
     if ig_connected and hasattr(ig_client, "get_user_profile"):
         now = time.time()
         any_updated = False
@@ -54,13 +53,9 @@ async def list_conversations(request: Request, db: AsyncSession = Depends(get_db
                 continue
             try:
                 profile = await ig_client.get_user_profile(conv.ig_user_id)
-            except Exception as _pe:
-                import logging as _pl
-                _pl.getLogger(__name__).warning(f"profile lookup exception for {conv.ig_user_id}: {_pe}")
+            except Exception:
                 profile = None
             lookups_done += 1
-            import logging as _pl
-            _pl.getLogger(__name__).info(f"profile lookup {conv.ig_user_id}: {profile}")
             if profile and (profile.get("username") or profile.get("profile_pic")):
                 if not conv.ig_username and profile.get("username"):
                     conv.ig_username = profile["username"]
