@@ -53,9 +53,13 @@ async def list_conversations(request: Request, db: AsyncSession = Depends(get_db
                 continue
             try:
                 profile = await ig_client.get_user_profile(conv.ig_user_id)
-            except Exception:
+            except Exception as _pe:
+                import logging as _pl
+                _pl.getLogger(__name__).warning(f"profile lookup exception for {conv.ig_user_id}: {_pe}")
                 profile = None
             lookups_done += 1
+            import logging as _pl
+            _pl.getLogger(__name__).info(f"profile lookup {conv.ig_user_id}: {profile}")
             if profile and (profile.get("username") or profile.get("profile_pic")):
                 if not conv.ig_username and profile.get("username"):
                     conv.ig_username = profile["username"]
