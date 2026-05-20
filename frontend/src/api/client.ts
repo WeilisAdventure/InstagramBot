@@ -79,6 +79,12 @@ export const generateAIReply = (convId: number, prompt?: string) =>
 export const clearPromptNotes = (convId: number) =>
   request<{ ok: boolean }>(`/conversations/${convId}/prompt-notes`, { method: 'DELETE' });
 
+// Knowledge base
+export const getKnowledgeSection = (section: string) =>
+  request<{ section: string; content: string }>(`/knowledge/${section}`);
+export const updateKnowledgeSection = (section: string, content: string) =>
+  request<{ section: string; ok: boolean }>(`/knowledge/${section}`, { method: 'PUT', body: JSON.stringify({ content }) });
+
 // Settings
 export const getSettings = () => request<import('../types').Settings>('/settings');
 export const updateSettings = (data: Partial<import('../types').Settings>) =>

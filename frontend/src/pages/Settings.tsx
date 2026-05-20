@@ -6,6 +6,8 @@ import {
   createPreference,
   updatePreference,
   deletePreference,
+  getKnowledgeSection,
+  updateKnowledgeSection,
 } from '../api/client';
 import type { Settings as SettingsType, Preference } from '../types';
 
@@ -16,6 +18,14 @@ const PRESET_MODELS = [
   'gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite',
 ];
 
+const KB_SECTIONS = [
+  { key: 'system_prompt', label: 'AI 人设与对话规则' },
+  { key: 'pricing',       label: '价格信息' },
+  { key: 'coverage',      label: '配送覆盖区域' },
+  { key: 'sizes',         label: '包裹尺寸限制' },
+  { key: 'schedule',      label: '取件时间表' },
+];
+
 export default function Settings() {
   const [settings, setSettings] = useState<SettingsType | null>(null);
   const [saved, setSaved] = useState(false);
@@ -24,12 +34,31 @@ export default function Settings() {
   const [welcomeText, setWelcomeText] = useState('');
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [newPref, setNewPref] = useState('');
+  const [kbSection, setKbSection] = useState('system_prompt');
+  const [kbContent, setKbContent] = useState('');
+  const [kbLoading, setKbLoading] = useState(false);
+  const [kbSaved, setKbSaved] = useState(false);
 
   const reloadPreferences = () => {
     getPreferences().then(setPreferences).catch(() => {});
   };
 
+  const loadKbSection = (section: string) => {
+    setKbLoading(true);
+    getKnowledgeSection(section).then((r) => {
+      setKbContent(r.content);
+      setKbLoading(false);
+    }).catch(() => setKbLoading(false));
+  };
+
+  const saveKbSection = async () => {
+    await updateKnowledgeSection(kbSection, kbContent);
+    setKbSaved(true);
+    setTimeout(() => setKbSaved(false), 2000);
+  };
+
   useEffect(() => {
+    loadKbSection('system_prompt');
     getSettings().then((s) => {
       setSettings(s);
       setWelcomeText(s.welcome_message_text || '');
@@ -461,6 +490,67 @@ export default function Settings() {
               </div>
             </>
           )}
+        </div>
+
+        <hr className="divider" />
+
+        {/* Knowledge Base Editor */}
+        <div className="uppercase-label mb-8">知识库编辑</div>
+        <div className="card-surface mb-16">
+          <div className="card-row" style={{ flexWrap: 'wrap', gap: 6 }}>
+            <span className="card-key">章节</span>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {KB_SECTIONS.map((s) => (
+                <button
+                  key={s.key}
+                  className={kbSection === s.key ? 'btn-primary' : 'btn'}
+                  style={{ fontSize: 11, padding: '3px 10px' }}
+                  onClick={() => {
+                    setKbSection(s.key);
+                    loadKbSection(s.key);
+                  }}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ padding: '8px 12px' }}>
+            {kbLoading ? (
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>加载中...</div>
+            ) : (
+              <textarea
+                style={{
+                  width: '100%',
+                  minHeight: 280,
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  background: 'var(--bg-primary)',
+                  border: '0.5px solid var(--border-soft)',
+                  borderRadius: 8,
+                  padding: '8px 10px',
+                  resize: 'vertical',
+                  color: 'var(--text-primary)',
+                  lineHeight: 1.6,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                value={kbContent}
+                onChange={(e) => setKbContent(e.target.value)}
+              />
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, gap: 8, alignItems: 'center' }}>
+              {kbSaved && <span style={{ fontSize: 11, color: 'var(--green-600, #16a34a)' }}>已保存，立即生效</span>}
+              <button
+                className="btn-primary"
+                style={{ fontSize: 12, padding: '5px 14px' }}
+                onClick={saveKbSection}
+                disabled={kbLoading}
+              >
+                保存
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
