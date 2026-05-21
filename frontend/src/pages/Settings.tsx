@@ -8,7 +8,11 @@ import {
   deletePreference,
   getKnowledgeSection,
   updateKnowledgeSection,
+  listKnowledgeSections,
+  createKnowledgeSection,
+  deleteKnowledgeSection,
 } from '../api/client';
+import type { KnowledgeSection } from '../api/client';
 import type { Settings as SettingsType, Preference } from '../types';
 
 const PRESET_MODELS = [
@@ -18,13 +22,14 @@ const PRESET_MODELS = [
   'gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite',
 ];
 
-const KB_SECTIONS = [
-  { key: 'system_prompt', label: 'AI 人设与对话规则' },
-  { key: 'pricing',       label: '价格信息' },
-  { key: 'coverage',      label: '配送覆盖区域' },
-  { key: 'sizes',         label: '包裹尺寸限制' },
-  { key: 'schedule',      label: '取件时间表' },
-];
+const KB_LABELS: Record<string, string> = {
+  system_prompt: 'AI 人设与对话规则',
+  pricing: '价格信息',
+  coverage: '配送覆盖区域',
+  sizes: '包裹尺寸限制',
+  schedule: '取件时间表',
+};
+const kbLabel = (s: string) => KB_LABELS[s] || s;
 
 export default function Settings() {
   const [settings, setSettings] = useState<SettingsType | null>(null);
@@ -38,6 +43,7 @@ export default function Settings() {
   const [kbContent, setKbContent] = useState('');
   const [kbLoading, setKbLoading] = useState(false);
   const [kbSaved, setKbSaved] = useState(false);
+  const [kbSections, setKbSections] = useState<KnowledgeSection[]>([]);
 
   const reloadPreferences = () => {
     getPreferences().then(setPreferences).catch(() => {});
@@ -51,13 +57,57 @@ export default function Settings() {
     }).catch(() => setKbLoading(false));
   };
 
+  const reloadKbSections = () => {
+    listKnowledgeSections().then((r) => setKbSections(r.sections)).catch(() => {});
+  };
+
   const saveKbSection = async () => {
     await updateKnowledgeSection(kbSection, kbContent);
     setKbSaved(true);
     setTimeout(() => setKbSaved(false), 2000);
   };
 
+  const handleCreateKbSection = async () => {
+    const name = window.prompt(
+      '请输入新章节文件名（只能用小写字母、数字、下划线，例如 faq）：'
+    );
+    if (!name) return;
+    const trimmed = name.trim().toLowerCase();
+    if (!/^[a-z0-9_]+$/.test(trimmed)) {
+      alert('文件名只能包含小写字母、数字、下划线');
+      return;
+    }
+    try {
+      await createKnowledgeSection(trimmed, '');
+      reloadKbSections();
+      setKbSection(trimmed);
+      loadKbSection(trimmed);
+    } catch (e: any) {
+      alert(`创建失败：${e?.message || '该名称已存在或服务器错误'}`);
+    }
+  };
+
+  const handleDeleteKbSection = async () => {
+    const current = kbSections.find((s) => s.section === kbSection);
+    if (current?.protected) {
+      alert('此章节受保护，不可删除');
+      return;
+    }
+    if (!window.confirm(
+      `确定要删除知识库章节「${kbLabel(kbSection)}」（${kbSection}.md）吗？\n\n此操作无法撤销。`
+    )) return;
+    try {
+      await deleteKnowledgeSection(kbSection);
+      reloadKbSections();
+      setKbSection('system_prompt');
+      loadKbSection('system_prompt');
+    } catch (e: any) {
+      alert(`删除失败：${e?.message || '服务器错误'}`);
+    }
+  };
+
   useEffect(() => {
+    reloadKbSections();
     loadKbSection('system_prompt');
     getSettings().then((s) => {
       setSettings(s);
@@ -497,22 +547,31 @@ export default function Settings() {
         {/* Knowledge Base Editor */}
         <div className="uppercase-label mb-8">知识库编辑</div>
         <div className="card-surface mb-16">
-          <div className="card-row" style={{ flexWrap: 'wrap', gap: 6 }}>
-            <span className="card-key">章节</span>
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {KB_SECTIONS.map((s) => (
+          <div className="card-row" style={{ flexWrap: 'wrap', gap: 6, alignItems: 'flex-start' }}>
+            <span className="card-key" style={{ paddingTop: 4 }}>章节</span>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1 }}>
+              {kbSections.map((s) => (
                 <button
-                  key={s.key}
-                  className={kbSection === s.key ? 'btn-primary' : 'btn'}
+                  key={s.section}
+                  className={kbSection === s.section ? 'btn-primary' : 'btn'}
                   style={{ fontSize: 11, padding: '3px 10px' }}
                   onClick={() => {
-                    setKbSection(s.key);
-                    loadKbSection(s.key);
+                    setKbSection(s.section);
+                    loadKbSection(s.section);
                   }}
+                  title={s.builtin ? '内置章节（带意图路由）' : '自定义章节（每次都加载）'}
                 >
-                  {s.label}
+                  {kbLabel(s.section)}{!s.builtin && ' *'}
                 </button>
               ))}
+              <button
+                className="btn"
+                style={{ fontSize: 11, padding: '3px 10px', color: 'var(--accent, #185FA5)' }}
+                onClick={handleCreateKbSection}
+                title="新建一个知识库文件"
+              >
+                + 新建
+              </button>
             </div>
           </div>
           <div style={{ padding: '8px 12px' }}>
@@ -539,16 +598,33 @@ export default function Settings() {
                 onChange={(e) => setKbContent(e.target.value)}
               />
             )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, gap: 8, alignItems: 'center' }}>
-              {kbSaved && <span style={{ fontSize: 11, color: 'var(--green-600, #16a34a)' }}>已保存，立即生效</span>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, gap: 8, alignItems: 'center' }}>
               <button
-                className="btn-primary"
-                style={{ fontSize: 12, padding: '5px 14px' }}
-                onClick={saveKbSection}
-                disabled={kbLoading}
+                className="btn"
+                style={{
+                  fontSize: 11,
+                  padding: '5px 12px',
+                  color: 'var(--red-600, #dc2626)',
+                  opacity: kbSections.find((s) => s.section === kbSection)?.protected ? 0.4 : 1,
+                  cursor: kbSections.find((s) => s.section === kbSection)?.protected ? 'not-allowed' : 'pointer',
+                }}
+                onClick={handleDeleteKbSection}
+                disabled={kbLoading || kbSections.find((s) => s.section === kbSection)?.protected}
+                title={kbSections.find((s) => s.section === kbSection)?.protected ? '此章节受保护，不可删除' : '删除此章节'}
               >
-                保存
+                删除章节
               </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {kbSaved && <span style={{ fontSize: 11, color: 'var(--green-600, #16a34a)' }}>已保存，立即生效</span>}
+                <button
+                  className="btn-primary"
+                  style={{ fontSize: 12, padding: '5px 14px' }}
+                  onClick={saveKbSection}
+                  disabled={kbLoading}
+                >
+                  保存
+                </button>
+              </div>
             </div>
           </div>
         </div>

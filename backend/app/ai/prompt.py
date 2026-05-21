@@ -61,6 +61,23 @@ def build_system_prompt(
                 f"{section_text}"
             )
 
+    # Always include any user-added custom knowledge files
+    # (anything that isn't one of the built-in intent-routed sections).
+    _BUILTIN = {"system_prompt", "pricing", "coverage", "sizes", "schedule"}
+    custom_sections = []
+    if KNOWLEDGE_DIR.exists():
+        for path in sorted(KNOWLEDGE_DIR.glob("*.md")):
+            if path.stem not in _BUILTIN:
+                custom_sections.append(path.stem)
+    if custom_sections:
+        custom_text = load_sections(custom_sections)
+        if custom_text:
+            prompt += (
+                "\n\n## Additional Knowledge (always included)\n\n"
+                f"_(Custom sections: {', '.join(custom_sections)})_\n\n"
+                f"{custom_text}"
+            )
+
     return prompt
 
 

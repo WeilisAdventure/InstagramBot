@@ -80,10 +80,17 @@ export const clearPromptNotes = (convId: number) =>
   request<{ ok: boolean }>(`/conversations/${convId}/prompt-notes`, { method: 'DELETE' });
 
 // Knowledge base
+export interface KnowledgeSection { section: string; builtin: boolean; protected: boolean }
+export const listKnowledgeSections = () =>
+  request<{ sections: KnowledgeSection[] }>('/knowledge');
 export const getKnowledgeSection = (section: string) =>
   request<{ section: string; content: string }>(`/knowledge/${section}`);
 export const updateKnowledgeSection = (section: string, content: string) =>
   request<{ section: string; ok: boolean }>(`/knowledge/${section}`, { method: 'PUT', body: JSON.stringify({ content }) });
+export const createKnowledgeSection = (section: string, content = '') =>
+  request<{ section: string; ok: boolean }>(`/knowledge`, { method: 'POST', body: JSON.stringify({ section, content }) });
+export const deleteKnowledgeSection = (section: string) =>
+  request<{ section: string; ok: boolean }>(`/knowledge/${section}`, { method: 'DELETE' });
 
 // Settings
 export const getSettings = () => request<import('../types').Settings>('/settings');
