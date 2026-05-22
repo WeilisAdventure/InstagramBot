@@ -28,6 +28,7 @@ DEFAULTS = {
     "welcome_message_enabled": "false",
     "welcome_message_text": "",
     "default_conversation_mode": "ai",
+    "public_base_url": "",  # e.g. https://instagrambot.live — used to expose /media/* to AI providers
 }
 
 
@@ -85,6 +86,7 @@ async def get_settings(request: Request = None, db: AsyncSession = Depends(get_d
         welcome_message_enabled=(await _get_setting(db, "welcome_message_enabled")).lower() in ("true", "1"),
         welcome_message_text=await _get_setting(db, "welcome_message_text"),
         default_conversation_mode=await _get_setting(db, "default_conversation_mode"),
+        public_base_url=await _get_setting(db, "public_base_url"),
     )
 
 

@@ -364,6 +364,23 @@ export default function Settings() {
               <span className="card-value">秒（拟人化）</span>
             </div>
           </div>
+          <div className="card-row">
+            <span className="card-key">公网域名</span>
+            <div className="flex items-center gap-8" style={{ flex: 1, justifyContent: 'flex-end' }}>
+              <input
+                type="text"
+                placeholder="https://instagrambot.live"
+                style={{ width: 240, fontSize: 13, background: 'var(--bg-primary)', border: '0.5px solid var(--border-soft)', borderRadius: 8, padding: '4px 6px' }}
+                value={settings.public_base_url}
+                onChange={(e) => update({ public_base_url: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="card-row" style={{ paddingTop: 0 }}>
+            <span className="card-value" style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+              用于把客户发来的图片以可访问 URL 形式传给多模态 AI，留空则跳过图片
+            </span>
+          </div>
         </div>
 
         <hr className="divider" />

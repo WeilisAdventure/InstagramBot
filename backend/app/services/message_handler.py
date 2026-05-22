@@ -94,11 +94,11 @@ class MessageHandler:
             except Exception as e:
                 logger.warning(f"Could not fetch profile for {msg.sender_id}: {e}")
 
-        # Download attachments to local disk before saving the message — IG
-        # CDN URLs expire quickly. We keep the live URLs around to pass to
-        # the AI for multimodal reasoning (the model server reaches IG
-        # directly), and persist the local copies for inbox display.
-        image_urls = [a.url for a in (msg.attachments or []) if a.type == "image" and a.url]
+        # Download attachments to local disk before saving — IG CDN URLs
+        # expire quickly. We then expose them to the AI via our own public
+        # URL (public_base_url + /media/...), so even on retry the link stays
+        # valid. Falls back to the original IG URL if no public_base_url
+        # is configured yet.
         stored_atts: list[dict] = []
         if msg.attachments:
             from app.services.attachment_store import download_attachment
@@ -106,6 +106,15 @@ class MessageHandler:
                 saved = await download_attachment(a.url, a.type)
                 if saved:
                     stored_atts.append(saved)
+        public_base = (await self._get_setting_value("public_base_url", "")).rstrip("/")
+        image_urls: list[str] = []
+        if stored_atts and public_base:
+            image_urls = [
+                f"{public_base}{s['url']}" for s in stored_atts if s["type"] == "image"
+            ]
+        else:
+            # Fallback: pass the live IG URL straight through (may expire).
+            image_urls = [a.url for a in (msg.attachments or []) if a.type == "image" and a.url]
 
         # Display content: text plus a tag so the inbox preview shows
         # "[图片]" even before the image actually renders.

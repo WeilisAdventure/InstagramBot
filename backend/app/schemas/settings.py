@@ -23,6 +23,7 @@ class SettingsResponse(BaseModel):
     welcome_message_enabled: bool
     welcome_message_text: str
     default_conversation_mode: str = "ai"
+    public_base_url: str = ""
 
 
 class SettingsUpdate(BaseModel):
@@ -44,3 +45,4 @@ class SettingsUpdate(BaseModel):
     welcome_message_enabled: bool | None = None
     welcome_message_text: str | None = None
     default_conversation_mode: str | None = None
+    public_base_url: str | None = None

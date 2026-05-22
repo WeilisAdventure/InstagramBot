@@ -281,12 +281,22 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
         custom_base_url=custom_url,
     )
     request.app.state.ai_provider = ai
-    # Get last user message
+    # Get last user message + its image attachments (if any), so multimodal
+    # models can actually see what the customer sent.
     last_user_msg = ""
+    last_user_attachments: list = []
     for m in reversed(messages):
         if m.role == "user":
             last_user_msg = m.content
+            last_user_attachments = m.attachments or []
             break
+    pub = (await _db_val("public_base_url")).rstrip("/")
+    image_urls: list[str] = []
+    if pub and last_user_attachments:
+        for a in last_user_attachments:
+            if isinstance(a, dict) and a.get("type") == "image" and a.get("url"):
+                url = a["url"]
+                image_urls.append(url if url.startswith("http") else f"{pub}{url}")
 
     # Load active manager preferences (style rules learnt from past prompts)
     from app.models.preference import ManagerPreference
@@ -327,7 +337,10 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     if all_notes:
         final_extra += f"\n\nAdditional style instructions from the manager (apply all of them):\n{all_notes}"
 
-    reply = await ai.generate_reply(last_user_msg, history, extra_prompt=final_extra)
+    reply = await ai.generate_reply(
+        last_user_msg, history, extra_prompt=final_extra,
+        image_urls=image_urls or None,
+    )
 
     # Fire-and-forget: distill long-term preferences from this prompt hint
     if extra_prompt and extra_prompt.strip():

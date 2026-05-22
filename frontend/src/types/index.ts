@@ -87,6 +87,7 @@ export interface Settings {
   welcome_message_enabled: boolean;
   welcome_message_text: string;
   default_conversation_mode: 'ai' | 'human';
+  public_base_url: string;
 }
 
 export interface Preference {
