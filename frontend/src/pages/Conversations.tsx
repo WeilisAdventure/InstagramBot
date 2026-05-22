@@ -455,7 +455,7 @@ export default function Conversations() {
 
   const hasChinese = (text: string) => /[一-鿿]/.test(text);
 
-  const username = detail ? (detail.ig_username || detail.ig_user_id) : '';
+  const username = detail ? (detail.external_username || detail.external_user_id) : '';
   const initials = username.slice(0, 2).toUpperCase();
 
   return (
@@ -506,16 +506,16 @@ export default function Conversations() {
                 background: c.id === selectedId ? 'var(--bg-secondary)' : undefined,
               }}
             >
-              {c.ig_profile_pic && !brokenImgs.has(c.id) ? (
+              {c.external_profile_pic && !brokenImgs.has(c.id) ? (
                 <img
-                  src={c.ig_profile_pic}
+                  src={c.external_profile_pic}
                   className="avatar avatar-md"
                   style={{ objectFit: 'cover' }}
                   onError={() => setBrokenImgs(prev => new Set(prev).add(c.id))}
                 />
               ) : (
                 <div className={`avatar avatar-md ${avatarColors[i % avatarColors.length]}`}>
-                  {getInitials(c.ig_username || c.ig_user_id)}
+                  {getInitials(c.external_username || c.external_user_id)}
                 </div>
               )}
               <div className="list-item-info">
@@ -527,7 +527,7 @@ export default function Conversations() {
                   {c.trigger_source === 'comment_rule' && (
                     <span style={{ marginRight: 4 }} aria-hidden>💬</span>
                   )}
-                  {c.ig_username || c.ig_user_id}
+                  {c.external_username || c.external_user_id}
                 </div>
                 <div className="list-item-last">{c.last_message || '暂无消息'}</div>
               </div>
@@ -563,9 +563,9 @@ export default function Conversations() {
           <>
             {/* Chat Header */}
             <div className="panel-header" style={{ background: 'var(--bg-primary)', gap: 10 }}>
-              {detail.ig_profile_pic && !brokenImgs.has(detail.id) ? (
+              {detail.external_profile_pic && !brokenImgs.has(detail.id) ? (
                 <img
-                  src={detail.ig_profile_pic}
+                  src={detail.external_profile_pic}
                   className="avatar avatar-sm"
                   style={{ objectFit: 'cover' }}
                   onError={() => setBrokenImgs(prev => new Set(prev).add(detail.id))}

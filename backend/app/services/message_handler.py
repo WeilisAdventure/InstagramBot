@@ -5,7 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.conversation import Conversation, Message
 from app.models.settings import SystemSettings
-from app.instagram.base import IncomingMessage, IncomingComment, InstagramClient
+from app.channels.base import ChannelClient, IncomingMessage
+from app.channels.instagram.base import IncomingComment, InstagramClient
 from app.ai.base import AIProvider
 from app.services.comment_trigger import find_matching_rule, render_template
 from app.database import async_session
@@ -14,10 +15,43 @@ logger = logging.getLogger(__name__)
 
 
 class MessageHandler:
-    def __init__(self, ai: AIProvider, ig: InstagramClient, reply_delay: int = 3):
+    """Cross-channel inbound DM + comment handler.
+
+    Dispatches outbound sends through `clients[channel]`. Comment handling
+    (IG-only) reaches directly into the IG client — Tidio and friends don't
+    have a comment concept.
+    """
+
+    def __init__(
+        self,
+        ai: AIProvider,
+        clients: dict[str, ChannelClient] | ChannelClient,
+        reply_delay: int = 3,
+    ):
         self.ai = ai
-        self.ig = ig
+        # Accept a single client for backwards-compat in tests / scripts that
+        # still pass `ig=` style. Tests calling `MessageHandler(ai, mock_ig)`
+        # continue to work; production main.py passes a dict.
+        if isinstance(clients, dict):
+            self.clients: dict[str, ChannelClient] = clients
+        else:
+            self.clients = {"instagram": clients}
         self.reply_delay = reply_delay
+
+    @property
+    def ig(self) -> ChannelClient | None:
+        """Back-compat shim — some call sites (API send endpoint, lifecycle
+        shutdown) still reach for `.ig`. Returns the IG client if registered."""
+        return self.clients.get("instagram")
+
+    def _client_for(self, channel: str) -> ChannelClient:
+        try:
+            return self.clients[channel]
+        except KeyError as e:
+            raise RuntimeError(
+                f"No registered channel client for '{channel}'. "
+                f"Available: {list(self.clients)}"
+            ) from e
 
     async def _get_setting_value(self, key: str, default: str = "") -> str:
         """Read a setting value from DB at runtime."""
@@ -39,14 +73,19 @@ class MessageHandler:
             return setting.value.lower() in ("true", "1", "yes")
 
     async def _get_or_create_conversation(
-        self, db: AsyncSession, sender_id: str, username: str,
+        self, db: AsyncSession, channel: str, sender_id: str, username: str,
         trigger_source: str = "direct_dm", rule_id: int | None = None,
         mode: str | None = None,
     ) -> tuple[Conversation, bool]:
-        """Returns (conversation, is_new)."""
+        """Returns (conversation, is_new). Identity is (channel, sender_id) —
+        same numeric ID on two different channels is two distinct users."""
         result = await db.execute(
             select(Conversation)
-            .where(Conversation.ig_user_id == sender_id, Conversation.is_resolved == False)
+            .where(
+                Conversation.channel == channel,
+                Conversation.external_user_id == sender_id,
+                Conversation.is_resolved == False,
+            )
             .order_by(Conversation.created_at.desc())
         )
         conv = result.scalar_one_or_none()
@@ -57,8 +96,9 @@ class MessageHandler:
             default_mode = await self._get_setting_value("default_conversation_mode", "ai")
             mode = default_mode if default_mode in ("ai", "human") else "ai"
         conv = Conversation(
-            ig_user_id=sender_id,
-            ig_username=username,
+            channel=channel,
+            external_user_id=sender_id,
+            external_username=username,
             trigger_source=trigger_source,
             trigger_rule_id=rule_id,
             mode=mode,
@@ -78,15 +118,19 @@ class MessageHandler:
         return [{"role": m.role, "content": m.content} for m in messages if m.role in ("user", "assistant") and m.content and m.content.strip()]
 
     async def handle_dm(self, msg: IncomingMessage):
-        """Handle an incoming direct message."""
+        """Handle an incoming direct message from any channel."""
+        channel = msg.channel or "instagram"
+        client = self._client_for(channel)
+
         auto_reply_on = await self._is_enabled("auto_reply_enabled")
 
-        # If username is empty (webhook mode), try to fetch it via Graph API
+        # If username is empty (webhook mode), try to fetch it via the
+        # channel's profile API (IG: Graph; Tidio: Contacts; etc.). Optional.
         username = msg.sender_username
         profile_pic = None
-        if hasattr(self.ig, 'get_user_profile'):
+        if hasattr(client, 'get_user_profile'):
             try:
-                profile = await self.ig.get_user_profile(msg.sender_id)
+                profile = await client.get_user_profile(msg.sender_id)
                 if profile:
                     if not username:
                         username = profile.get("username", "") or profile.get("name", "")
@@ -136,12 +180,12 @@ class MessageHandler:
         # Phase 1: Save user message immediately so frontend can see it
         async with async_session() as db:
             conv, is_new = await self._get_or_create_conversation(
-                db, msg.sender_id, username
+                db, channel, msg.sender_id, username
             )
-            if username and not conv.ig_username:
-                conv.ig_username = username
+            if username and not conv.external_username:
+                conv.external_username = username
             if profile_pic:
-                conv.ig_profile_pic = profile_pic
+                conv.external_profile_pic = profile_pic
             user_msg = Message(
                 conversation_id=conv.id,
                 role="user",
@@ -160,7 +204,7 @@ class MessageHandler:
             if welcome_enabled:
                 welcome_text = await self._get_setting_value("welcome_message_text", "")
                 if welcome_text.strip():
-                    success = await self.ig.send_dm(msg.sender_id, welcome_text)
+                    success = await client.send_dm(msg.sender_id, welcome_text)
                     async with async_session() as db:
                         db.add(Message(
                             conversation_id=conv_id,
@@ -273,10 +317,10 @@ class MessageHandler:
         strategy = await self._get_setting_value("translation_strategy", "auto")
         if strategy in ("always", "auto"):
             import re
-            reply_has_cjk = bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf]", reply_text))
+            reply_has_cjk = bool(re.search(r"[一-鿿㐀-䶿]", reply_text))
             should_translate = strategy == "always"
             if strategy == "auto":
-                customer_has_cjk = bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf]", msg.text or ""))
+                customer_has_cjk = bool(re.search(r"[一-鿿㐀-䶿]", msg.text or ""))
                 should_translate = reply_has_cjk != customer_has_cjk
             if should_translate:
                 try:
@@ -293,7 +337,7 @@ class MessageHandler:
             await asyncio.sleep(delay)
 
         # Send reply
-        success = await self.ig.send_dm(msg.sender_id, reply_text)
+        success = await client.send_dm(msg.sender_id, reply_text)
 
         # Phase 3: Save assistant message
         async with async_session() as db:
@@ -317,13 +361,16 @@ class MessageHandler:
     async def handle_comment(self, comment: IncomingComment):
         """Handle an incoming comment: log the event then optionally trigger.
 
-        Every comment is recorded in `comment_events` so the manager has
-        visibility even when comment-trigger is disabled. The auto-action
-        (public reply + DM + conversation creation) only runs when the
-        global toggle is on AND a rule matches.
+        Comments are IG-only — Tidio has no equivalent concept. So we always
+        dispatch via the registered Instagram client.
         """
         from app.models.comment_event import CommentEvent
         from sqlalchemy.exc import IntegrityError
+
+        ig = self.clients.get("instagram")
+        if ig is None:
+            logger.warning("Comment event arrived but no Instagram client registered")
+            return
 
         trigger_on = await self._is_enabled("comment_trigger_enabled")
 
@@ -363,7 +410,7 @@ class MessageHandler:
         # Fire-and-forget: fetch the post permalink in the background so the
         # inbox can link straight to the IG post. Non-blocking; failures are
         # logged inside the helper.
-        if event_id and comment.media_id and hasattr(self.ig, "get_media_permalink"):
+        if event_id and comment.media_id and hasattr(ig, "get_media_permalink"):
             asyncio.create_task(self._enrich_event_permalink(event_id, comment.media_id))
 
         if not trigger_on:
@@ -394,19 +441,19 @@ class MessageHandler:
                 public_text = render_template(
                     rule.public_reply_template, name=comment.username
                 )
-                await self.ig.reply_to_comment(
+                await ig.reply_to_comment(
                     comment.media_id, comment.comment_id, public_text
                 )
 
             # Send DM
             if rule.dm_template:
                 dm_text = render_template(rule.dm_template, name=comment.username)
-                await self.ig.send_dm(comment.user_id, dm_text)
+                await ig.send_dm(comment.user_id, dm_text)
 
             # Create or update conversation with trigger info
             mode = rule.follow_up_mode  # "ai" or "human"
             conv, _ = await self._get_or_create_conversation(
-                db, comment.user_id, comment.username,
+                db, "instagram", comment.user_id, comment.username,
                 trigger_source="comment_rule",
                 rule_id=rule.id,
                 mode=mode,
@@ -435,8 +482,11 @@ class MessageHandler:
 
     async def _enrich_event_permalink(self, event_id: int, media_id: str):
         """Fetch the post permalink via Graph API and persist it on the event."""
+        ig = self.clients.get("instagram")
+        if ig is None:
+            return
         try:
-            permalink = await self.ig.get_media_permalink(media_id)
+            permalink = await ig.get_media_permalink(media_id)
         except Exception as e:
             logger.warning(f"Permalink fetch failed for media {media_id}: {e}")
             return

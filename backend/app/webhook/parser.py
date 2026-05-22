@@ -1,5 +1,5 @@
 import time
-from app.instagram.base import IncomingMessage, IncomingComment, Attachment
+from app.channels.instagram.base import IncomingMessage, IncomingComment, Attachment
 
 
 def parse_messaging_events(data: dict) -> list[IncomingMessage]:

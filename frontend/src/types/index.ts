@@ -40,9 +40,12 @@ export interface Message {
 
 export interface Conversation {
   id: number;
-  ig_user_id: string;
-  ig_username: string;
-  ig_profile_pic: string | null;
+  // Routing key: 'instagram' | 'tidio' | future channels. (channel, external_user_id)
+  // is the unique identity — same numeric id on two channels = two distinct users.
+  channel: string;
+  external_user_id: string;
+  external_username: string;
+  external_profile_pic: string | null;
   trigger_source: string;
   trigger_rule_id: number | null;
   mode: string;

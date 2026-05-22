@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import init_db
 from app.ai.factory import create_ai_provider
-from app.instagram.factory import create_instagram_client
+from app.channels.factory import create_channel_clients
 from app.services.message_handler import MessageHandler
 from app.services.translator import TranslatorService
 from app.api import auth, dashboard, rules, conversations, preferences, comments, knowledge
@@ -36,38 +36,51 @@ async def lifespan(app: FastAPI):
     ai = create_ai_provider(settings)
     app.state.ai_provider = ai
 
-    logger.info(f"Creating Instagram client: {settings.ig_mode}")
-    ig = create_instagram_client(settings)
+    logger.info(f"Creating channel clients (IG mode={settings.ig_mode})")
+    clients = create_channel_clients(settings)
+    app.state.channel_clients = clients
+    # Back-compat: a few places (API send endpoint, /health, conversations
+    # profile backfill) still reach for `app.state.ig_client`. Keep the
+    # alias pointing at the IG client.
+    ig = clients.get("instagram")
     app.state.ig_client = ig
 
-    handler = MessageHandler(ai, ig, reply_delay=settings.reply_delay_seconds)
+    handler = MessageHandler(ai, clients, reply_delay=settings.reply_delay_seconds)
     app.state.message_handler = handler
 
     translator = TranslatorService(ai)
     app.state.translator = translator
 
-    # Set up handlers for polling mode
-    ig.set_message_handler(handler.handle_dm)
-    ig.set_comment_handler(handler.handle_comment)
+    # Wire handler callbacks for every channel that supports them
+    for ch_name, ch_client in clients.items():
+        ch_client.set_message_handler(handler.handle_dm)
+        if hasattr(ch_client, "set_comment_handler"):
+            ch_client.set_comment_handler(handler.handle_comment)
 
-    # Start client (polling for instagrapi, token verify for graph_api)
-    try:
-        await ig.start_polling()
-        if settings.ig_mode == "graph_api":
-            logger.info("Graph API mode: webhooks will handle incoming messages/comments")
-    except Exception as e:
-        logger.error(f"Instagram client init failed: {e}")
-        logger.warning(
-            "Bot started WITHOUT Instagram connection. "
-            "Dashboard and API are available. "
-            "Fix your credentials, then restart."
-        )
+    # Start each channel (polling for instagrapi, token verify for graph_api,
+    # webhook-only channels may no-op).
+    for ch_name, ch_client in clients.items():
+        try:
+            await ch_client.start_polling()
+            if ch_name == "instagram" and settings.ig_mode == "graph_api":
+                logger.info("Graph API mode: webhooks will handle incoming messages/comments")
+        except Exception as e:
+            logger.error(f"Channel '{ch_name}' init failed: {e}")
+            logger.warning(
+                f"Bot started WITHOUT {ch_name} connection. "
+                "Dashboard and API are available. "
+                "Fix the credentials, then restart."
+            )
 
     yield
 
     # Shutdown
-    logger.info("Stopping Instagram client...")
-    await ig.stop_polling()
+    logger.info("Stopping channel clients...")
+    for ch_name, ch_client in clients.items():
+        try:
+            await ch_client.stop_polling()
+        except Exception as e:
+            logger.warning(f"Stop polling for '{ch_name}' failed: {e}")
 
 
 app = FastAPI(title="Instagram Bot", version="0.1.0", lifespan=lifespan)

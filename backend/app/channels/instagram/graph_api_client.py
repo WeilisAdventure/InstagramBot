@@ -1,6 +1,6 @@
 import logging
 import httpx
-from app.instagram.base import InstagramClient
+from app.channels.instagram.base import InstagramClient
 
 logger = logging.getLogger(__name__)
 

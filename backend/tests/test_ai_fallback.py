@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from app.ai.base import AIProvider
 from app.services.message_handler import MessageHandler
-from app.instagram.base import IncomingMessage
+from app.channels.instagram.base import IncomingMessage
 from app.models.conversation import Conversation, Message
 from app.models.settings import SystemSettings
 
@@ -57,7 +57,7 @@ class NormalAIProvider(AIProvider):
 async def test_technical_failure_saves_error_system_message(db_session):
     """When AI API fails, save [AI_ERROR] system message, don't send DM."""
     # Setup conversation
-    conv = Conversation(ig_user_id="111", ig_username="user1", trigger_source="direct_dm", mode="ai")
+    conv = Conversation(channel="instagram", external_user_id="111", external_username="user1", trigger_source="direct_dm", mode="ai")
     db_session.add(conv)
     await db_session.flush()
 
@@ -69,7 +69,7 @@ async def test_technical_failure_saves_error_system_message(db_session):
     mock_ig.send_dm = AsyncMock(return_value=True)
     mock_ig.get_user_profile = AsyncMock(return_value=None)
 
-    handler = MessageHandler(ai=FailingAIProvider(), ig=mock_ig)
+    handler = MessageHandler(ai=FailingAIProvider(), clients={"instagram": mock_ig})
 
     msg = IncomingMessage(sender_id="111", sender_username="user1", message_id="m1", text="Hello", timestamp=1000.0)
 
@@ -99,7 +99,7 @@ async def test_technical_failure_saves_error_system_message(db_session):
 @pytest.mark.asyncio
 async def test_cannot_answer_saves_system_message(db_session):
     """When AI returns __CANNOT_ANSWER__, save system message, don't send DM."""
-    conv = Conversation(ig_user_id="222", ig_username="user2", trigger_source="direct_dm", mode="ai")
+    conv = Conversation(channel="instagram", external_user_id="222", external_username="user2", trigger_source="direct_dm", mode="ai")
     db_session.add(conv)
     await db_session.flush()
 
@@ -110,7 +110,7 @@ async def test_cannot_answer_saves_system_message(db_session):
     mock_ig.send_dm = AsyncMock(return_value=True)
     mock_ig.get_user_profile = AsyncMock(return_value=None)
 
-    handler = MessageHandler(ai=CannotAnswerAIProvider(), ig=mock_ig)
+    handler = MessageHandler(ai=CannotAnswerAIProvider(), clients={"instagram": mock_ig})
 
     msg = IncomingMessage(sender_id="222", sender_username="user2", message_id="m2", text="What is the weather today?", timestamp=1000.0)
 
@@ -140,7 +140,7 @@ async def test_cannot_answer_saves_system_message(db_session):
 @pytest.mark.asyncio
 async def test_normal_reply_sends_dm(db_session):
     """When AI replies normally, DM should be sent."""
-    conv = Conversation(ig_user_id="333", ig_username="user3", trigger_source="direct_dm", mode="ai")
+    conv = Conversation(channel="instagram", external_user_id="333", external_username="user3", trigger_source="direct_dm", mode="ai")
     db_session.add(conv)
     await db_session.flush()
 
@@ -153,7 +153,7 @@ async def test_normal_reply_sends_dm(db_session):
     mock_ig.send_dm = AsyncMock(return_value=True)
     mock_ig.get_user_profile = AsyncMock(return_value=None)
 
-    handler = MessageHandler(ai=NormalAIProvider(), ig=mock_ig)
+    handler = MessageHandler(ai=NormalAIProvider(), clients={"instagram": mock_ig})
 
     msg = IncomingMessage(sender_id="333", sender_username="user3", message_id="m3", text="Hi there", timestamp=1000.0)
 
