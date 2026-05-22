@@ -23,7 +23,7 @@ const PRESET_MODELS = [
 ];
 
 const KB_LABELS: Record<string, string> = {
-  system_prompt: 'AI 人设与对话规则',
+  system_prompt: 'System Prompt',
   pricing: '价格信息',
   coverage: '配送覆盖区域',
   sizes: '包裹尺寸限制',
