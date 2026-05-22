@@ -83,6 +83,10 @@ async def list_conversations(request: Request, db: AsyncSession = Depends(get_db
         data.last_message = last_msg.content if last_msg else None
         data.last_message_role = last_msg.role if last_msg else None
         data.last_message_is_ai = last_msg.is_ai_generated if last_msg else None
+        data.last_message_id = last_msg.id if last_msg else None
+        # bool() guards against attachments being [] vs None — either way
+        # we want False unless there's at least one real attachment.
+        data.last_message_has_attachments = bool(last_msg and last_msg.attachments) if last_msg else None
         response.append(data)
     return response
 

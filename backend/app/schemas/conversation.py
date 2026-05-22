@@ -34,6 +34,15 @@ class ConversationResponse(BaseModel):
     last_message: str | None = None
     last_message_role: str | None = None
     last_message_is_ai: bool | None = None
+    # Primary key of the most recent Message row. Used by the frontend as a
+    # stable "has there been a new message?" signal — unlike `updated_at`,
+    # this only advances when a real message is inserted (mode toggles and
+    # profile backfills don't bump it), so it can't trigger false notifications.
+    last_message_id: int | None = None
+    # True when the most recent message carries attachments. Lets the
+    # notification UI render "[图片]" for image-only DMs where `last_message`
+    # text is empty.
+    last_message_has_attachments: bool | None = None
 
     model_config = {"from_attributes": True}
 

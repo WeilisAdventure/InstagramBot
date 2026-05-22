@@ -44,32 +44,9 @@ function persistDraft(id: number | null, draft: Draft) {
 
 const avatarColors = ['avatar-blue', 'avatar-pink', 'avatar-green', 'avatar-amber'];
 
-// Notification sound using Web Audio API (no file dependency)
-function playNotificationSound() {
-  try {
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    osc.type = 'sine';
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.3);
-  } catch { /* ignore audio errors */ }
-}
-
-function showDesktopNotification(title: string, body: string) {
-  if (Notification.permission === 'granted') {
-    new Notification(title, { body, icon: '/favicon.ico' });
-  } else if (Notification.permission !== 'denied') {
-    Notification.requestPermission().then((p) => {
-      if (p === 'granted') new Notification(title, { body, icon: '/favicon.ico' });
-    });
-  }
-}
+// New-message notifications now live in `useNewMessageNotifications`, mounted
+// at the Layout level so they fire across all routes (not just while the
+// operator is on /conversations). Don't reintroduce dispatch logic here.
 
 function getInitials(name: string) {
   return name.slice(0, 2).toUpperCase();
@@ -281,78 +258,10 @@ export default function Conversations() {
   const [toast, setToast] = useState<{ text: string; type: 'info' | 'warn' | 'error' } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
-  const titleFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const originalTitle = useRef(document.title);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [brokenImgs, setBrokenImgs] = useState<Set<number>>(new Set());
   const [lightbox, setLightbox] = useState<string | null>(null);
-
-  // Baseline guard prevents false "new message" notifications on the very
-  // first data arrival, including tab-switch returns where React Query
-  // serves cached data immediately.
-  const lastSeenRef = useRef<Map<number, string>>(new Map());
-  const hasBaselineRef = useRef(false);
-
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (unreadCount > 0 && notifSettings?.notification_enabled && notifSettings?.notification_title_flash) {
-      let show = true;
-      titleFlashRef.current = setInterval(() => {
-        document.title = show ? `(${unreadCount}条新消息) InstaBot` : originalTitle.current;
-        show = !show;
-      }, 1000);
-    } else {
-      if (titleFlashRef.current) clearInterval(titleFlashRef.current);
-      document.title = originalTitle.current;
-    }
-    return () => {
-      if (titleFlashRef.current) clearInterval(titleFlashRef.current);
-      document.title = originalTitle.current;
-    };
-  }, [unreadCount, notifSettings?.notification_enabled, notifSettings?.notification_title_flash]);
-
-  useEffect(() => {
-    const onFocus = () => setUnreadCount(0);
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, []);
-
-  // Detect new messages each time the convs query refreshes.
-  useEffect(() => {
-    if (!convs.length && !hasBaselineRef.current) return;
-    if (!hasBaselineRef.current) {
-      for (const c of convs) lastSeenRef.current.set(c.id, c.updated_at);
-      hasBaselineRef.current = true;
-      return;
-    }
-    if (notifSettings?.notification_enabled) {
-      for (const c of convs) {
-        if (c.last_message_role !== 'user') continue;
-        const prevTime = lastSeenRef.current.get(c.id);
-        const isNew = !prevTime && c.last_message;
-        const isUpdated = prevTime && c.updated_at !== prevTime && c.last_message;
-        if (isNew || isUpdated) {
-          if (notifSettings.notification_sound) playNotificationSound();
-          if (notifSettings.notification_desktop) {
-            showDesktopNotification(
-              `${isNew ? '新对话' : '新消息'} - ${c.ig_username || c.ig_user_id}`,
-              c.last_message || ''
-            );
-          }
-          if (notifSettings.notification_title_flash) {
-            setUnreadCount(prev => prev + 1);
-          }
-          break;
-        }
-      }
-    }
-    for (const c of convs) lastSeenRef.current.set(c.id, c.updated_at);
-  }, [convs, notifSettings]);
+  // Notification dispatch (sound / desktop / title flash) is handled globally
+  // by useNewMessageNotifications, mounted at the Layout level.
 
   useEffect(() => {
     setTimeout(() => {

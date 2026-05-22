@@ -52,6 +52,8 @@ export interface Conversation {
   last_message: string | null;
   last_message_role: string | null;
   last_message_is_ai: boolean | null;
+  last_message_id: number | null;
+  last_message_has_attachments: boolean | null;
 }
 
 export interface ConversationDetail extends Conversation {
