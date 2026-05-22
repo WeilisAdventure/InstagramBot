@@ -259,7 +259,7 @@ export default function Conversations() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const [brokenImgs, setBrokenImgs] = useState<Set<number>>(new Set());
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{ url: string; isVideo: boolean } | null>(null);
   // Notification dispatch (sound / desktop / title flash) is handled globally
   // by useNewMessageNotifications, mounted at the Layout level.
 
@@ -469,7 +469,17 @@ export default function Conversations() {
             justifyContent: 'center', cursor: 'zoom-out',
           }}
         >
-          <img src={lightbox} alt="" style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain' }} />
+          {lightbox.isVideo ? (
+            <video
+              src={lightbox.url}
+              controls
+              autoPlay
+              onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: '95vw', maxHeight: '95vh' }}
+            />
+          ) : (
+            <img src={lightbox.url} alt="" style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain' }} />
+          )}
         </div>
       )}
       {/* === Left: Conversation List === */}
@@ -607,24 +617,37 @@ export default function Conversations() {
                   );
                 }
                 const isUser = m.role === 'user';
-                const imgAtts = (m.attachments || []).filter((a) => a.type === 'image');
-                const otherAtts = (m.attachments || []).filter((a) => a.type !== 'image');
+                const mediaAtts = (m.attachments || []).filter((a) => a.type === 'image' || a.type === 'video');
+                const otherAtts = (m.attachments || []).filter((a) => a.type !== 'image' && a.type !== 'video');
                 // If the stored content is just the auto-generated [图片] tag,
-                // hide it when we already render the image inline.
+                // hide it when we already render the media inline.
                 const textOnly = m.content
                   .replace(/\[图片(\s*x\d+)?\]/g, '')
-                  .replace(/\[(video|audio|file|share|story_mention|ig_reel)\]/g, '')
+                  .replace(/\[(image|video|audio|file|share|story_mention|ig_reel|ig_post)\]/g, '')
                   .trim();
                 return (
                   <div key={m.id} className={`msg-row ${isUser ? 'from-user' : 'from-me'}`}>
-                    {imgAtts.length > 0 && (
+                    {mediaAtts.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 260, marginBottom: textOnly ? 4 : 0 }}>
-                        {imgAtts.map((a, i) => (
+                        {mediaAtts.map((a, i) => a.type === 'video' ? (
+                          <video
+                            key={i}
+                            src={a.url}
+                            onClick={() => setLightbox({ url: a.url, isVideo: true })}
+                            style={{
+                              maxWidth: 220, maxHeight: 220, borderRadius: 12,
+                              cursor: 'zoom-in', objectFit: 'cover', display: 'block',
+                              background: '#000',
+                            }}
+                            muted
+                            preload="metadata"
+                          />
+                        ) : (
                           <img
                             key={i}
                             src={a.url}
                             alt=""
-                            onClick={() => setLightbox(a.url)}
+                            onClick={() => setLightbox({ url: a.url, isVideo: false })}
                             style={{
                               maxWidth: 220, maxHeight: 220, borderRadius: 12,
                               cursor: 'zoom-in', objectFit: 'cover', display: 'block',

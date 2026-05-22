@@ -57,11 +57,22 @@ async def download_attachment(remote_url: str, att_type: str) -> dict | None:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
             r = await client.get(remote_url)
             r.raise_for_status()
-            mime = r.headers.get("content-type", "")
+            mime = (r.headers.get("content-type", "") or "").split(";")[0].strip().lower()
             ext = _ext_for(mime, att_type)
             fname = f"{uuid.uuid4().hex}{ext}"
             (_MEDIA_ROOT / fname).write_bytes(r.content)
-            return {"type": att_type, "url": f"/media/attachments/{fname}"}
+            # IG sometimes labels things `ig_post` / `share` / `story_mention`
+            # but the actual content is just a jpg/mp4. Reclassify by mime so
+            # the frontend can render an <img> or <video> instead of a tag.
+            if mime.startswith("image/"):
+                kind = "image"
+            elif mime.startswith("video/"):
+                kind = "video"
+            elif mime.startswith("audio/"):
+                kind = "audio"
+            else:
+                kind = att_type
+            return {"type": kind, "url": f"/media/attachments/{fname}"}
     except Exception as e:
         logger.warning(f"Attachment download failed for {remote_url[:80]}: {e}")
         return None
