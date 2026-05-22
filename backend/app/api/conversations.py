@@ -337,6 +337,11 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     if all_notes:
         final_extra += f"\n\nAdditional style instructions from the manager (apply all of them):\n{all_notes}"
 
+    import logging
+    logging.getLogger(__name__).info(
+        f"generate_reply conv={conv_id} model={getattr(ai, 'model', '?')} "
+        f"image_urls={image_urls} last_user_attachments={last_user_attachments}"
+    )
     reply = await ai.generate_reply(
         last_user_msg, history, extra_prompt=final_extra,
         image_urls=image_urls or None,
