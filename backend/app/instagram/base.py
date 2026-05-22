@@ -1,6 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Awaitable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Attachment:
+    type: str  # "image" | "video" | "audio" | "file" | "share" | "story_mention" | "ig_reel" | ...
+    url: str
 
 
 @dataclass
@@ -10,6 +16,7 @@ class IncomingMessage:
     message_id: str
     text: str | None
     timestamp: float
+    attachments: list[Attachment] = field(default_factory=list)
 
 
 @dataclass

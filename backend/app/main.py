@@ -1,8 +1,10 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import init_db
 from app.ai.factory import create_ai_provider
@@ -92,6 +94,13 @@ app.include_router(knowledge.router)
 
 # Mount webhook (always available, primary for graph_api mode)
 app.include_router(webhook_router)
+
+# Serve downloaded DM attachments. UUID filenames make the URL the capability,
+# so the mount stays open (browser <img> can't carry our Bearer token).
+_MEDIA_DIR = Path(__file__).resolve().parent.parent / "media"
+_MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+(_MEDIA_DIR / "attachments").mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=str(_MEDIA_DIR)), name="media")
 
 
 @app.get("/privacy", response_class=HTMLResponse)

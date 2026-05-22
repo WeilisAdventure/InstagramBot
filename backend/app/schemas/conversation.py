@@ -2,6 +2,11 @@ from pydantic import BaseModel
 from datetime import datetime
 
 
+class MessageAttachment(BaseModel):
+    type: str
+    url: str
+
+
 class MessageResponse(BaseModel):
     id: int
     conversation_id: int
@@ -9,6 +14,7 @@ class MessageResponse(BaseModel):
     content: str
     original_content: str | None
     is_ai_generated: bool
+    attachments: list[MessageAttachment] | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

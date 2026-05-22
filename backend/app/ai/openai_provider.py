@@ -17,6 +17,7 @@ class OpenAIProvider(AIProvider):
         user_message: str,
         conversation_history: list[dict] | None = None,
         extra_prompt: str | None = None,
+        image_urls: list[str] | None = None,
     ) -> str:
         system = self.system_prompt
         if extra_prompt:
@@ -24,7 +25,13 @@ class OpenAIProvider(AIProvider):
         messages = [{"role": "system", "content": system}]
         if conversation_history:
             messages.extend(conversation_history)
-        messages.append({"role": "user", "content": user_message})
+        if image_urls:
+            parts: list[dict] = [{"type": "text", "text": user_message or "(图片消息,无文字)"}]
+            for url in image_urls:
+                parts.append({"type": "image_url", "image_url": {"url": url}})
+            messages.append({"role": "user", "content": parts})
+        else:
+            messages.append({"role": "user", "content": user_message})
 
         response = await self.client.chat.completions.create(
             model=self.model,

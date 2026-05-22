@@ -14,11 +14,22 @@ class ClaudeProvider(AIProvider):
         user_message: str,
         conversation_history: list[dict] | None = None,
         extra_prompt: str | None = None,
+        image_urls: list[str] | None = None,
     ) -> str:
         messages = []
         if conversation_history:
             messages.extend(conversation_history)
-        messages.append({"role": "user", "content": user_message})
+        if image_urls:
+            content_blocks: list[dict] = []
+            for url in image_urls:
+                content_blocks.append({
+                    "type": "image",
+                    "source": {"type": "url", "url": url},
+                })
+            content_blocks.append({"type": "text", "text": user_message or "(图片消息,无文字)"})
+            messages.append({"role": "user", "content": content_blocks})
+        else:
+            messages.append({"role": "user", "content": user_message})
 
         system = self.system_prompt
         if extra_prompt:

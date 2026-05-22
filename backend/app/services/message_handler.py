@@ -94,6 +94,36 @@ class MessageHandler:
             except Exception as e:
                 logger.warning(f"Could not fetch profile for {msg.sender_id}: {e}")
 
+        # Download attachments to local disk before saving the message — IG
+        # CDN URLs expire quickly. We keep the live URLs around to pass to
+        # the AI for multimodal reasoning (the model server reaches IG
+        # directly), and persist the local copies for inbox display.
+        image_urls = [a.url for a in (msg.attachments or []) if a.type == "image" and a.url]
+        stored_atts: list[dict] = []
+        if msg.attachments:
+            from app.services.attachment_store import download_attachment
+            for a in msg.attachments:
+                saved = await download_attachment(a.url, a.type)
+                if saved:
+                    stored_atts.append(saved)
+
+        # Display content: text plus a tag so the inbox preview shows
+        # "[图片]" even before the image actually renders.
+        tag_parts: list[str] = []
+        img_count = sum(1 for s in stored_atts if s["type"] == "image")
+        if img_count:
+            tag_parts.append(f"[图片 x{img_count}]" if img_count > 1 else "[图片]")
+        for s in stored_atts:
+            if s["type"] != "image":
+                tag_parts.append(f"[{s['type']}]")
+        att_tag = " ".join(tag_parts)
+        if msg.text and att_tag:
+            stored_content = f"{msg.text}\n{att_tag}"
+        elif att_tag:
+            stored_content = att_tag
+        else:
+            stored_content = msg.text or ""
+
         # Phase 1: Save user message immediately so frontend can see it
         async with async_session() as db:
             conv, is_new = await self._get_or_create_conversation(
@@ -106,7 +136,8 @@ class MessageHandler:
             user_msg = Message(
                 conversation_id=conv.id,
                 role="user",
-                content=msg.text or "",
+                content=stored_content,
+                attachments=stored_atts or None,
             )
             db.add(user_msg)
             conv.updated_at = datetime.now(timezone.utc)
@@ -196,7 +227,12 @@ class MessageHandler:
         auto_extra = build_reply_directive(is_first=is_first, for_draft=False)
 
         try:
-            reply_text = await self.ai.generate_reply(msg.text or "", history, extra_prompt=auto_extra)
+            reply_text = await self.ai.generate_reply(
+                msg.text or "",
+                history,
+                extra_prompt=auto_extra,
+                image_urls=image_urls or None,
+            )
         except Exception as e:
             logger.error(f"AI reply failed: {e}")
             async with async_session() as db:

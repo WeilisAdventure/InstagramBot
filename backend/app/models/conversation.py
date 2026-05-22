@@ -31,6 +31,9 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     original_content: Mapped[str | None] = mapped_column(Text, nullable=True)  # before translation
     is_ai_generated: Mapped[bool] = mapped_column(Boolean, default=False)
+    # List of {"type": "image"|..., "url": "/media/attachments/<uuid>.<ext>"} entries.
+    # Stored as JSON so the schema can grow (mime, size, original_url) without a migration.
+    attachments: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")

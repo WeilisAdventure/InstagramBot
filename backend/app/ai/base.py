@@ -69,8 +69,9 @@ class AIProvider(ABC):
         user_message: str,
         conversation_history: list[dict] | None = None,
         extra_prompt: str | None = None,
+        image_urls: list[str] | None = None,
     ) -> str:
-        """Generate a reply given the user's message and optional conversation history."""
+        """Generate a reply given the user's message, optional history, and optional image URLs (multimodal)."""
         ...
 
     @abstractmethod

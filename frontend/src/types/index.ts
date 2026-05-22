@@ -22,6 +22,11 @@ export interface RuleCreate {
   is_active?: boolean;
 }
 
+export interface MessageAttachment {
+  type: string;
+  url: string;
+}
+
 export interface Message {
   id: number;
   conversation_id: number;
@@ -29,6 +34,7 @@ export interface Message {
   content: string;
   original_content: string | null;
   is_ai_generated: boolean;
+  attachments: MessageAttachment[] | null;
   created_at: string;
 }
 

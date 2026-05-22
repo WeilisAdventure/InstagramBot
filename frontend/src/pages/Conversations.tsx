@@ -285,6 +285,7 @@ export default function Conversations() {
   const originalTitle = useRef(document.title);
   const [unreadCount, setUnreadCount] = useState(0);
   const [brokenImgs, setBrokenImgs] = useState<Set<number>>(new Set());
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
   // Baseline guard prevents false "new message" notifications on the very
   // first data arrival, including tab-switch returns where React Query
@@ -550,6 +551,18 @@ export default function Conversations() {
 
   return (
     <div className="flex" style={{ height: '100%', overflow: 'hidden' }}>
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+            zIndex: 9999, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', cursor: 'zoom-out',
+          }}
+        >
+          <img src={lightbox} alt="" style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain' }} />
+        </div>
+      )}
       {/* === Left: Conversation List === */}
       <div className="flex-col" style={{ width: 300, minWidth: 300, borderRight: '0.5px solid var(--border-soft)', height: '100%' }}>
         <div className="panel-header">
@@ -685,11 +698,40 @@ export default function Conversations() {
                   );
                 }
                 const isUser = m.role === 'user';
+                const imgAtts = (m.attachments || []).filter((a) => a.type === 'image');
+                const otherAtts = (m.attachments || []).filter((a) => a.type !== 'image');
+                // If the stored content is just the auto-generated [图片] tag,
+                // hide it when we already render the image inline.
+                const textOnly = m.content
+                  .replace(/\[图片(\s*x\d+)?\]/g, '')
+                  .replace(/\[(video|audio|file|share|story_mention|ig_reel)\]/g, '')
+                  .trim();
                 return (
                   <div key={m.id} className={`msg-row ${isUser ? 'from-user' : 'from-me'}`}>
-                    <div className={`bubble ${isUser ? 'bubble-in' : 'bubble-out'}`}>
-                      {m.content}
-                    </div>
+                    {imgAtts.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 260, marginBottom: textOnly ? 4 : 0 }}>
+                        {imgAtts.map((a, i) => (
+                          <img
+                            key={i}
+                            src={a.url}
+                            alt=""
+                            onClick={() => setLightbox(a.url)}
+                            style={{
+                              maxWidth: 220, maxHeight: 220, borderRadius: 12,
+                              cursor: 'zoom-in', objectFit: 'cover', display: 'block',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {(textOnly || otherAtts.length > 0) && (
+                      <div className={`bubble ${isUser ? 'bubble-in' : 'bubble-out'}`}>
+                        {textOnly}
+                        {otherAtts.map((a, i) => (
+                          <span key={i} style={{ opacity: 0.6, marginLeft: textOnly ? 6 : 0 }}>[{a.type}]</span>
+                        ))}
+                      </div>
+                    )}
                     <div className={`msg-label${isUser ? '' : ' right'}`}>
                       {isUser
                         ? username

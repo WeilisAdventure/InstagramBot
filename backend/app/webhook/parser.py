@@ -1,5 +1,5 @@
 import time
-from app.instagram.base import IncomingMessage, IncomingComment
+from app.instagram.base import IncomingMessage, IncomingComment, Attachment
 
 
 def parse_messaging_events(data: dict) -> list[IncomingMessage]:
@@ -31,15 +31,25 @@ def parse_messaging_events(data: dict) -> list[IncomingMessage]:
                 continue
             sender_id = event.get("sender", {}).get("id", "")
             msg_data = event.get("message", {})
-            if not msg_data or not msg_data.get("text"):
+            if not msg_data:
+                continue
+            text = msg_data.get("text")
+            attachments: list[Attachment] = []
+            for att in msg_data.get("attachments", []) or []:
+                url = (att.get("payload") or {}).get("url", "")
+                a_type = att.get("type", "")
+                if url and a_type:
+                    attachments.append(Attachment(type=a_type, url=url))
+            if not text and not attachments:
                 continue
             messages.append(
                 IncomingMessage(
                     sender_id=sender_id,
                     sender_username="",  # Not available in webhook; fetched later if needed
                     message_id=msg_data.get("mid", ""),
-                    text=msg_data.get("text"),
+                    text=text,
                     timestamp=float(event.get("timestamp", 0)),
+                    attachments=attachments,
                 )
             )
     return messages

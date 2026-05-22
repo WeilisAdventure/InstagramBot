@@ -10,6 +10,9 @@ export default defineConfig({
         target: 'http://localhost:8000',
         timeout: 300000, // 5 minutes for large file uploads
       },
+      '/media': {
+        target: 'http://localhost:8000',
+      },
     },
   },
 })

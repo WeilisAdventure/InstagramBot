@@ -21,6 +21,7 @@ class GoogleProvider(AIProvider):
         user_message: str,
         conversation_history: list[dict] | None = None,
         extra_prompt: str | None = None,
+        image_urls: list[str] | None = None,
     ) -> str:
         if extra_prompt:
             orig = self.system_prompt
@@ -34,7 +35,20 @@ class GoogleProvider(AIProvider):
             for msg in conversation_history:
                 role = "user" if msg["role"] == "user" else "model"
                 contents.append({"role": role, "parts": [msg["content"]]})
-        contents.append({"role": "user", "parts": [user_message]})
+        parts: list = [user_message or "(图片消息,无文字)"]
+        if image_urls:
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=15) as client:
+                    for url in image_urls:
+                        r = await client.get(url)
+                        if r.status_code == 200:
+                            mime = r.headers.get("content-type", "image/jpeg").split(";")[0]
+                            parts.append({"mime_type": mime, "data": r.content})
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Gemini image fetch failed: {e}")
+        contents.append({"role": "user", "parts": parts})
 
         response = await model.generate_content_async(
             contents,
