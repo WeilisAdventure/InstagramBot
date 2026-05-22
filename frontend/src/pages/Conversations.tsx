@@ -365,51 +365,54 @@ export default function Conversations() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const invalidateConv = () => {
-    queryClient.invalidateQueries({ queryKey: ['conversation', selectedId] });
-    queryClient.invalidateQueries({ queryKey: ['conversations'] });
-  };
-
   // === Mutations ===
+  // Every mutation that touches cached data passes the originating convId
+  // through its `variables` and reads it from there in callbacks. We do
+  // NOT use `selectedId` or `detail` from the outer closure inside
+  // onSuccess/onMutate, because by the time the mutation resolves the user
+  // may have switched conversations — that would write the result to the
+  // wrong conversation's cache.
+
   const sendMutation = useMutation({
-    mutationFn: (vars: { text: string; isAi?: boolean; skipTranslation?: boolean }) =>
-      sendMessage(detail!.id, vars.text, vars.isAi ?? false, vars.skipTranslation ?? false),
-    onSuccess: (res) => {
+    mutationFn: (vars: { convId: number; text: string; isAi?: boolean; skipTranslation?: boolean }) =>
+      sendMessage(vars.convId, vars.text, vars.isAi ?? false, vars.skipTranslation ?? false),
+    onSuccess: (res, vars) => {
       if (!res.ig_sent) {
         showToast('消息已保存，但未能发送到 Instagram（可能是测试用户）', 'warn');
       }
-      invalidateConv();
+      queryClient.invalidateQueries({ queryKey: ['conversation', vars.convId] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
     onError: () => showToast('发送失败，请重试', 'error'),
   });
 
   const assistMutation = useMutation({
-    mutationFn: (text: string) => assistInput(detail!.id, text),
-    onSuccess: (result) => setAssist(result),
+    mutationFn: (vars: { convId: number; text: string }) => assistInput(vars.convId, vars.text),
+    onSuccess: (result, vars) => {
+      // Only surface the assist preview if the user is still viewing the
+      // conversation we generated it for; otherwise silently discard.
+      if (selectedId === vars.convId) setAssist(result);
+    },
   });
 
   const generateReplyMutation = useMutation({
-    mutationFn: (prompt: string) => generateAIReply(detail!.id, prompt || undefined),
-    onSuccess: (res) => {
+    mutationFn: (vars: { convId: number; prompt: string }) =>
+      generateAIReply(vars.convId, vars.prompt || undefined),
+    onSuccess: (res, vars) => {
       if (!res.reply) {
         showToast('AI 返回了空回复，请重试', 'warn');
         return;
       }
-      // Write directly to cache + sessionStorage instead of setAiReply, so
-      // the result survives even if the component unmounted while the
-      // mutation was in flight (user switched tabs mid-generation).
-      if (selectedId) {
-        queryClient.setQueryData<Draft>(['draft', selectedId], (old) => {
-          const next = { ...(old ?? EMPTY_DRAFT), reply: res.reply, prompt: '' };
-          persistDraft(selectedId, next);
-          return next;
-        });
-      }
-      // Server-side appended prompt notes — patch the cached detail so the
-      // indicator updates immediately without waiting for the next poll.
-      if (res.prompt_notes !== undefined && selectedId) {
+      // Land the reply in the ORIGINATING conv's draft, not whatever
+      // the user happens to be looking at right now.
+      queryClient.setQueryData<Draft>(['draft', vars.convId], (old) => {
+        const next = { ...(old ?? EMPTY_DRAFT), reply: res.reply, prompt: '' };
+        persistDraft(vars.convId, next);
+        return next;
+      });
+      if (res.prompt_notes !== undefined) {
         queryClient.setQueryData<ConversationDetail | null>(
-          ['conversation', selectedId],
+          ['conversation', vars.convId],
           (old) => (old ? { ...old, ai_prompt_notes: res.prompt_notes } : old),
         );
       }
@@ -417,49 +420,51 @@ export default function Conversations() {
     onError: (e: any) => {
       const msg = e?.response?.data?.detail || e?.message || '生成失败';
       showToast(`生成回复失败：${msg}`, 'error');
-      setAiReply('');
     },
   });
 
   const translateReplyMutation = useMutation({
-    mutationFn: (text: string) => translateMessage(detail!.id, text),
-    onSuccess: (res) => setAiTranslation(res.translated),
+    mutationFn: (vars: { convId: number; text: string }) => translateMessage(vars.convId, vars.text),
+    onSuccess: (res, vars) => {
+      queryClient.setQueryData<Draft>(['draft', vars.convId], (old) => {
+        const next = { ...(old ?? EMPTY_DRAFT), translation: res.translated };
+        persistDraft(vars.convId, next);
+        return next;
+      });
+    },
     onError: () => showToast('翻译失败，请重试', 'error'),
   });
 
   const modeSwitchMutation = useMutation({
-    mutationFn: (next: 'ai' | 'human') => updateConversationMode(detail!.id, next),
-    onMutate: async (next) => {
-      // Optimistic: flip mode immediately so polling cadence and UI react
-      // without waiting for the server round-trip.
-      if (!selectedId) return;
-      await queryClient.cancelQueries({ queryKey: ['conversation', selectedId] });
-      const previous = queryClient.getQueryData<ConversationDetail>(['conversation', selectedId]);
+    mutationFn: (vars: { convId: number; next: 'ai' | 'human' }) =>
+      updateConversationMode(vars.convId, vars.next),
+    onMutate: async (vars) => {
+      // Optimistic — flip mode immediately on the originating conv.
+      await queryClient.cancelQueries({ queryKey: ['conversation', vars.convId] });
+      const previous = queryClient.getQueryData<ConversationDetail>(['conversation', vars.convId]);
       queryClient.setQueryData<ConversationDetail | null>(
-        ['conversation', selectedId],
-        (old) => (old ? { ...old, mode: next } : old),
+        ['conversation', vars.convId],
+        (old) => (old ? { ...old, mode: vars.next } : old),
       );
-      setAssist(null);
-      return { previous };
+      if (selectedId === vars.convId) setAssist(null);
+      return { previous, convId: vars.convId };
     },
-    onError: (_e, _next, ctx) => {
-      if (ctx?.previous && selectedId) {
-        queryClient.setQueryData(['conversation', selectedId], ctx.previous);
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(['conversation', ctx.convId], ctx.previous);
       }
       showToast('模式切换失败', 'error');
     },
   });
 
   const clearNotesMutation = useMutation({
-    mutationFn: () => clearPromptNotes(detail!.id),
-    onSuccess: () => {
-      if (selectedId) {
-        queryClient.setQueryData<ConversationDetail | null>(
-          ['conversation', selectedId],
-          (old) => (old ? { ...old, ai_prompt_notes: null } : old),
-        );
-      }
-      showToast('已清空累积指令', 'info');
+    mutationFn: (convId: number) => clearPromptNotes(convId),
+    onSuccess: (_res, convId) => {
+      queryClient.setQueryData<ConversationDetail | null>(
+        ['conversation', convId],
+        (old) => (old ? { ...old, ai_prompt_notes: null } : old),
+      );
+      if (selectedId === convId) showToast('已清空累积指令', 'info');
     },
   });
 
@@ -492,17 +497,17 @@ export default function Conversations() {
 
   const loadAiReply = () => {
     if (!detail) return;
-    generateReplyMutation.mutate(aiPrompt);
+    generateReplyMutation.mutate({ convId: detail.id, prompt: aiPrompt });
   };
 
   const handleClearPromptNotes = () => {
     if (!detail) return;
-    clearNotesMutation.mutate();
+    clearNotesMutation.mutate(detail.id);
   };
 
   const handleModeSwitch = (next: 'ai' | 'human') => {
     if (!detail || next === mode) return;
-    modeSwitchMutation.mutate(next);
+    modeSwitchMutation.mutate({ convId: detail.id, next });
   };
 
   const handleSend = () => {
@@ -510,12 +515,12 @@ export default function Conversations() {
     const text = input;
     setInput('');
     setAssist(null);
-    sendMutation.mutate({ text });
+    sendMutation.mutate({ convId: detail.id, text });
   };
 
   const handleTranslateAiReply = () => {
     if (!detail || !aiReply.trim()) return;
-    translateReplyMutation.mutate(aiReply);
+    translateReplyMutation.mutate({ convId: detail.id, text: aiReply });
   };
 
   const handleSendAiReply = () => {
@@ -524,12 +529,12 @@ export default function Conversations() {
     const textToSend = useTranslation ? aiTranslation : aiReply;
     setAiReply('');
     setAiTranslation('');
-    sendMutation.mutate({ text: textToSend, isAi: true, skipTranslation: useTranslation });
+    sendMutation.mutate({ convId: detail.id, text: textToSend, isAi: true, skipTranslation: useTranslation });
   };
 
   const handleAssist = () => {
     if (!detail || !input.trim() || assistMutation.isPending) return;
-    assistMutation.mutate(input);
+    assistMutation.mutate({ convId: detail.id, text: input });
   };
 
   // Loading flags consumed by JSX
