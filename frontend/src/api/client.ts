@@ -64,7 +64,11 @@ export const deleteRule = (id: number) =>
   request<void>(`/rules/${id}`, { method: 'DELETE' });
 
 // Conversations
-export const getConversations = () => request<import('../types').Conversation[]>('/conversations');
+// `channel` is required by the backend (no silent cross-channel mixing). Defaults
+// to 'instagram' so legacy call sites that haven't been threaded through still
+// resolve correctly during the multi-channel rollout.
+export const getConversations = (channel: string = 'instagram') =>
+  request<import('../types').Conversation[]>(`/conversations?channel=${encodeURIComponent(channel)}`);
 export const getConversation = (id: number) => request<import('../types').ConversationDetail>(`/conversations/${id}`);
 export const updateConversationMode = (id: number, mode: string) =>
   request<{ ok: boolean }>(`/conversations/${id}/mode`, { method: 'PATCH', body: JSON.stringify({ mode }) });

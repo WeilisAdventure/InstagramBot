@@ -131,10 +131,15 @@ async def open_conversation(event_id: int, request: Request, db: AsyncSession = 
     if not ev.user_id:
         raise HTTPException(400, "Comment has no user_id; cannot open conversation")
 
-    # Match the lookup logic in MessageHandler._get_or_create_conversation
+    # Match the lookup logic in MessageHandler._get_or_create_conversation.
+    # Comments are IG-only, so we always look up against channel='instagram'.
     result = await db.execute(
         select(Conversation)
-        .where(Conversation.ig_user_id == ev.user_id, Conversation.is_resolved == False)
+        .where(
+            Conversation.channel == "instagram",
+            Conversation.external_user_id == ev.user_id,
+            Conversation.is_resolved == False,
+        )
         .order_by(Conversation.created_at.desc())
     )
     conv = result.scalar_one_or_none()
@@ -148,8 +153,9 @@ async def open_conversation(event_id: int, request: Request, db: AsyncSession = 
         mode_setting = mode_setting_q.scalar_one_or_none()
         default_mode = mode_setting.value if mode_setting and mode_setting.value in ("ai", "human") else "ai"
         conv = Conversation(
-            ig_user_id=ev.user_id,
-            ig_username=ev.username or "",
+            channel="instagram",
+            external_user_id=ev.user_id,
+            external_username=ev.username or "",
             trigger_source="manual_from_comment",
             mode=default_mode,
         )

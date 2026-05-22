@@ -169,7 +169,7 @@ export function useNewMessageNotifications() {
               ? c.last_message
               : (c.last_message_has_attachments ? '[图片]' : '');
           showDesktopNotification(
-            `${prevId === undefined ? '新对话' : '新消息'} - ${c.ig_username || c.ig_user_id}`,
+            `${prevId === undefined ? '新对话' : '新消息'} - ${c.external_username || c.external_user_id}`,
             body,
           );
         }

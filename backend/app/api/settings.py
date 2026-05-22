@@ -62,7 +62,7 @@ async def get_settings(request: Request = None, db: AsyncSession = Depends(get_d
         if getattr(ig_client, "connected", False):
             ig_status = "connected"
         ig_username = getattr(ig_client, "username", "") or ""
-        from app.instagram.graph_api_client import GRAPH_API_BASE
+        from app.channels.instagram.graph_api_client import GRAPH_API_BASE
         ig_api_version = GRAPH_API_BASE.split("/")[-1] if "graph.instagram.com" in GRAPH_API_BASE else ""
     return SettingsResponse(
         ig_connection_status=ig_status,

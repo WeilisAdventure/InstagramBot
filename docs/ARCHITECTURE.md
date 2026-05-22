@@ -54,8 +54,9 @@ into `app.state` at startup:
 | Object | Built by | Used by |
 |---|---|---|
 | `ai_provider` | `app.ai.factory.create_ai_provider` from env | `MessageHandler`, manual generate-reply, translator |
-| `ig_client` | `app.instagram.factory.create_instagram_client` | `MessageHandler`, profile lookup, send DM |
-| `message_handler` | `MessageHandler(ai, ig)` | webhook router, instagrapi polling |
+| `channel_clients` | `app.channels.factory.create_channel_clients` | `MessageHandler`, profile lookup, send DM (per channel) |
+| `ig_client` | alias of `channel_clients['instagram']` | legacy call sites (API send, /health) |
+| `message_handler` | `MessageHandler(ai, channel_clients)` | webhook router, channel-client polling |
 
 ---
 
@@ -257,9 +258,10 @@ erDiagram
 
     conversations {
         int id PK
-        string ig_user_id "indexed"
-        string ig_username
-        string ig_profile_pic
+        string channel "instagram | tidio | ... (indexed)"
+        string external_user_id "indexed; (channel, external_user_id) is the unique identity"
+        string external_username
+        string external_profile_pic
         string trigger_source "direct_dm | comment_rule | manual_from_comment"
         int trigger_rule_id FK
         string mode "ai | human"

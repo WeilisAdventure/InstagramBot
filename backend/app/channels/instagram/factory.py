@@ -1,6 +1,6 @@
-from app.instagram.base import InstagramClient
-from app.instagram.instagrapi_client import InstagrapiClient
-from app.instagram.graph_api_client import GraphApiClient
+from app.channels.instagram.base import InstagramClient
+from app.channels.instagram.instagrapi_client import InstagrapiClient
+from app.channels.instagram.graph_api_client import GraphApiClient
 from app.config import Settings
 
 

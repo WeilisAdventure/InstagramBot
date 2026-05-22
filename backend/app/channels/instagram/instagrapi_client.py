@@ -2,7 +2,7 @@ import asyncio
 import logging
 from pathlib import Path
 from instagrapi import Client as InstaClient
-from app.instagram.base import InstagramClient, IncomingMessage, IncomingComment
+from app.channels.instagram.base import InstagramClient, IncomingMessage, IncomingComment
 
 logger = logging.getLogger(__name__)
 

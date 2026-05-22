@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,57 +15,79 @@ from app.security import verify_token
 router = APIRouter(prefix="/api/conversations", tags=["conversations"], dependencies=[Depends(verify_token)])
 
 
-# In-memory cache: ig_user_id -> unix timestamp of last failed lookup attempt.
-# We skip retrying the same user for _PROFILE_RETRY_COOLDOWN seconds so a dead
-# token (or any user that consistently 400s on Graph API) doesn't trigger a
-# lookup storm on every conversations-list poll.
-_PROFILE_LOOKUP_FAIL_CACHE: dict[str, float] = {}
+# In-memory cache: (channel, external_user_id) -> unix timestamp of last
+# failed profile lookup attempt. We skip retrying the same user for
+# _PROFILE_RETRY_COOLDOWN seconds so a dead token (or any user that
+# consistently 400s on the channel's profile API) doesn't trigger a
+# lookup storm on every list poll.
+_PROFILE_LOOKUP_FAIL_CACHE: dict[tuple[str, str], float] = {}
 _PROFILE_RETRY_COOLDOWN = 30 * 60  # 30 minutes
 
 
+def _get_channel_client(request: Request, channel: str):
+    """Return the registered client for a channel, or None.
+
+    Falls back to `app.state.ig_client` for the instagram channel so older
+    code paths that only set the legacy alias still work.
+    """
+    clients = getattr(request.app.state, "channel_clients", None)
+    if isinstance(clients, dict) and channel in clients:
+        return clients[channel]
+    if channel == "instagram":
+        return getattr(request.app.state, "ig_client", None)
+    return None
+
+
 @router.get("", response_model=list[ConversationResponse])
-async def list_conversations(request: Request, db: AsyncSession = Depends(get_db)):
+async def list_conversations(
+    request: Request,
+    channel: str = Query(..., description="Channel name, e.g. 'instagram' or 'tidio'"),
+    db: AsyncSession = Depends(get_db),
+):
     import time
 
     result = await db.execute(
-        select(Conversation).order_by(Conversation.updated_at.desc())
+        select(Conversation)
+        .where(Conversation.channel == channel)
+        .order_by(Conversation.updated_at.desc())
     )
     convs = result.scalars().all()
 
-    # Lazy-load missing profile pics / usernames via IG API.
-    # Only when the IG client is currently CONNECTED (otherwise the token is
+    # Lazy-load missing profile pics / usernames via the channel's profile API.
+    # Only when the channel client is currently CONNECTED (otherwise the token is
     # dead and every call would 400 — wait until the manager refreshes it).
-    ig_client = getattr(request.app.state, "ig_client", None)
-    ig_connected = bool(ig_client and getattr(ig_client, "connected", False))
-    if ig_connected and hasattr(ig_client, "get_user_profile"):
+    ch_client = _get_channel_client(request, channel)
+    ch_connected = bool(ch_client and getattr(ch_client, "connected", False))
+    if ch_connected and hasattr(ch_client, "get_user_profile"):
         now = time.time()
         any_updated = False
         lookups_done = 0
         for conv in convs:
             if lookups_done >= 2:   # max 2 API calls per list request
                 break
-            if not conv.ig_user_id:
+            if not conv.external_user_id:
                 continue
-            if conv.ig_profile_pic and conv.ig_username:
+            if conv.external_profile_pic and conv.external_username:
                 continue
-            last_fail = _PROFILE_LOOKUP_FAIL_CACHE.get(conv.ig_user_id, 0)
+            cache_key = (channel, conv.external_user_id)
+            last_fail = _PROFILE_LOOKUP_FAIL_CACHE.get(cache_key, 0)
             if now - last_fail < _PROFILE_RETRY_COOLDOWN:
                 continue
             try:
-                profile = await ig_client.get_user_profile(conv.ig_user_id)
+                profile = await ch_client.get_user_profile(conv.external_user_id)
             except Exception:
                 profile = None
             lookups_done += 1
             if profile and (profile.get("username") or profile.get("profile_pic")):
-                if not conv.ig_username and profile.get("username"):
-                    conv.ig_username = profile["username"]
+                if not conv.external_username and profile.get("username"):
+                    conv.external_username = profile["username"]
                     any_updated = True
-                if not conv.ig_profile_pic and profile.get("profile_pic"):
-                    conv.ig_profile_pic = profile["profile_pic"]
+                if not conv.external_profile_pic and profile.get("profile_pic"):
+                    conv.external_profile_pic = profile["profile_pic"]
                     any_updated = True
-                _PROFILE_LOOKUP_FAIL_CACHE.pop(conv.ig_user_id, None)
+                _PROFILE_LOOKUP_FAIL_CACHE.pop(cache_key, None)
             else:
-                _PROFILE_LOOKUP_FAIL_CACHE[conv.ig_user_id] = now
+                _PROFILE_LOOKUP_FAIL_CACHE[cache_key] = now
         if any_updated:
             await db.commit()
 
@@ -104,9 +126,10 @@ async def get_conversation(conv_id: int, db: AsyncSession = Depends(get_db)):
     messages = msg_result.scalars().all()
     conv_data = {
         "id": conv.id,
-        "ig_user_id": conv.ig_user_id,
-        "ig_username": conv.ig_username,
-        "ig_profile_pic": conv.ig_profile_pic,
+        "channel": conv.channel,
+        "external_user_id": conv.external_user_id,
+        "external_username": conv.external_username,
+        "external_profile_pic": conv.external_profile_pic,
         "trigger_source": conv.trigger_source,
         "trigger_rule_id": conv.trigger_rule_id,
         "mode": conv.mode,
@@ -153,7 +176,7 @@ async def send_message(conv_id: int, data: SendMessageRequest, request: Request,
 
         if strategy in ("always", "auto"):
             import re
-            reply_has_cjk = bool(re.search(r"[\u4e00-\u9fff\u3400-\u4dbf]", send_text))
+            reply_has_cjk = bool(re.search(r"[一-鿿㐀-䶿]", send_text))
             should_translate = strategy == "always"
             if strategy == "auto":
                 last_user_q = await db.execute(
@@ -164,7 +187,7 @@ async def send_message(conv_id: int, data: SendMessageRequest, request: Request,
                 )
                 last_user = last_user_q.scalar_one_or_none()
                 customer_has_cjk = bool(
-                    last_user and re.search(r"[\u4e00-\u9fff\u3400-\u4dbf]", last_user.content or "")
+                    last_user and re.search(r"[一-鿿㐀-䶿]", last_user.content or "")
                 )
                 should_translate = reply_has_cjk != customer_has_cjk
             if should_translate:
@@ -176,14 +199,17 @@ async def send_message(conv_id: int, data: SendMessageRequest, request: Request,
                     pass
     # "never" or skip_translation=True: send as-is
 
-    # Try to send via Instagram, but save message regardless
-    ig_client = request.app.state.ig_client
+    # Try to send via the conversation's channel, but save message regardless
+    ch_client = _get_channel_client(request, conv.channel)
     ig_sent = False
     ig_error = ""
-    try:
-        ig_sent = await ig_client.send_dm(conv.ig_user_id, send_text)
-    except Exception as e:
-        ig_error = str(e)
+    if ch_client is None:
+        ig_error = f"No client registered for channel '{conv.channel}'"
+    else:
+        try:
+            ig_sent = await ch_client.send_dm(conv.external_user_id, send_text)
+        except Exception as e:
+            ig_error = str(e)
 
     # Always save the message to DB
     msg = Message(

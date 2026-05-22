@@ -22,9 +22,10 @@ class MessageResponse(BaseModel):
 
 class ConversationResponse(BaseModel):
     id: int
-    ig_user_id: str
-    ig_username: str
-    ig_profile_pic: str | None = None
+    channel: str
+    external_user_id: str
+    external_username: str
+    external_profile_pic: str | None = None
     trigger_source: str
     trigger_rule_id: int | None
     mode: str
