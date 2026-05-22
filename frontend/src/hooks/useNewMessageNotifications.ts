@@ -69,7 +69,7 @@ export function useNewMessageNotifications() {
     refetchInterval: 10000,
   });
 
-  const { data: convs = [] } = useQuery({
+  const { data: convs = [], dataUpdatedAt } = useQuery({
     queryKey: ['conversations'],
     queryFn: getConversations,
     refetchInterval: 2000,
@@ -119,10 +119,13 @@ export function useNewMessageNotifications() {
 
   // Core diff: detect new user-origin messages by message-id advance.
   useEffect(() => {
-    // Wait until we've actually received a response before establishing
-    // baseline. An empty array on first fetch is still a valid baseline
-    // (no convs exist yet) — we set the flag and exit so the *next* fetch
-    // showing convs doesn't notify for everything historical.
+    // dataUpdatedAt is 0 until the query has actually completed at least
+    // once. Without this guard the effect runs on the initial render with
+    // the default `convs = []`, prematurely marks baseline as established,
+    // and then floods notifications when real data arrives (every conv
+    // looks "new" because prevId is undefined for all of them).
+    if (dataUpdatedAt === 0) return;
+
     if (!hasBaselineRef.current) {
       for (const c of convs) {
         if (c.last_message_id != null) lastSeenIdRef.current.set(c.id, c.last_message_id);
@@ -174,5 +177,5 @@ export function useNewMessageNotifications() {
     if (newCount > 0 && settings.notification_title_flash) {
       setUnreadCount((prev) => prev + newCount);
     }
-  }, [convs, settings]);
+  }, [convs, settings, dataUpdatedAt]);
 }
