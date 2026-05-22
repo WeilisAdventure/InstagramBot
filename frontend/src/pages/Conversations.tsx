@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getConversations,
   getConversation,
@@ -11,7 +12,9 @@ import {
   generateAIReply,
   clearPromptNotes,
 } from '../api/client';
-import type { Conversation, ConversationDetail, AssistResult, Settings } from '../types';
+import type { ConversationDetail, AssistResult } from '../types';
+
+const SELECTED_CONV_KEY = 'instabot.selectedConv';
 
 const avatarColors = ['avatar-blue', 'avatar-pink', 'avatar-green', 'avatar-amber'];
 
@@ -68,9 +71,6 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hours / 24)}天前`;
 }
 
-// Drag-to-resize hook for textareas. Drag handle sits ABOVE the textarea;
-// pull up to grow, push down to shrink. Native browser resize is disabled
-// (resize: 'none') so the corner triangle never disappears under text.
 /**
  * Drag-to-resize a panel. The number this returns is the panel's preferred
  * height in px (used as flex-basis); CSS flex-shrink + min-height:0 inside
@@ -91,10 +91,6 @@ function useResizable(
       const raw = window.localStorage.getItem(storageKey);
       if (raw) {
         const n = parseInt(raw, 10);
-        // Reject saved values that are out of reasonable bounds — these
-        // tend to leak through from earlier broken-resize sessions and
-        // make every subsequent drag look frozen because the rendered
-        // height is already clamped by the container.
         if (!isNaN(n) && n >= minPx && n <= maxPx) return n;
       }
     }
@@ -104,10 +100,6 @@ function useResizable(
   const startDrag = (e: React.MouseEvent) => {
     e.preventDefault();
     const startY = e.clientY;
-    // Use the ACTUAL rendered height as the drag origin, not the
-    // possibly-stale state value. Without this, if state says 400 but
-    // flex shrunk the element to 250, the first 150px of upward drag
-    // visibly does nothing — which is exactly the "can't drag" symptom.
     const measured = targetRef.current?.getBoundingClientRect().height;
     const startH = typeof measured === 'number' && measured > 0 ? measured : height;
 
@@ -159,25 +151,25 @@ const innerSplitterStyle: React.CSSProperties = {
 
 export default function Conversations() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [convs, setConvs] = useState<Conversation[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [detail, setDetail] = useState<ConversationDetail | null>(null);
+  const queryClient = useQueryClient();
 
-  // Per-textarea resize state, persisted to localStorage so size sticks
-  // across page loads.
-  // Outer panel heights (drag handle at very top of input panel).
+  // Persist selectedId in sessionStorage so switching tabs (which unmounts
+  // this component) doesn't lose the user's place. ?conv=ID overrides on mount.
+  const [selectedId, setSelectedIdState] = useState<number | null>(() => {
+    const saved = sessionStorage.getItem(SELECTED_CONV_KEY);
+    const n = saved ? parseInt(saved, 10) : NaN;
+    return Number.isFinite(n) ? n : null;
+  });
+  const setSelectedId = (id: number | null) => {
+    setSelectedIdState(id);
+    if (id) sessionStorage.setItem(SELECTED_CONV_KEY, String(id));
+    else sessionStorage.removeItem(SELECTED_CONV_KEY);
+  };
+
   const aiPanelSize = useResizable(360, 'instabot.height.aiPanel');
   const humanPanelSize = useResizable(260, 'instabot.height.humanPanel');
-  // Inner splitter inside the AI panel: how tall the prompt section is.
-  // invertDrag=true: drag down → prompt grows (standard separator behaviour).
   const aiPromptSize = useResizable(80, 'instabot.height.aiPrompt', 30, 600, true);
-  // Inner splitter inside the human panel: how tall the assist preview is.
-  // invertDrag=true: drag down → preview grows (standard separator behaviour).
   const humanAssistSize = useResizable(120, 'instabot.height.humanAssist', 40, 600, true);
-
-  // True while POST /assist is in-flight; lock the assist button to
-  // prevent duplicate calls.
-  const [assisting, setAssisting] = useState(false);
 
   // Pick up ?conv=ID (e.g. when navigated from the comments inbox)
   useEffect(() => {
@@ -186,7 +178,6 @@ export default function Conversations() {
       const id = parseInt(convParam, 10);
       if (!isNaN(id)) {
         setSelectedId(id);
-        // Strip the param so reload/back doesn't keep re-selecting
         searchParams.delete('conv');
         setSearchParams(searchParams, { replace: true });
       }
@@ -194,46 +185,70 @@ export default function Conversations() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Chat state
+  // === Queries ===
+  const { data: notifSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+    refetchInterval: 2000,
+  });
+
+  const { data: convs = [] } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: getConversations,
+    refetchInterval: 2000,
+  });
+
+  const { data: detail = null, error: detailError } = useQuery({
+    queryKey: ['conversation', selectedId],
+    queryFn: () => getConversation(selectedId as number),
+    enabled: !!selectedId,
+    // Poll faster in AI mode so generated replies / incoming messages surface
+    // quickly; slower in human mode where the operator drives the pace.
+    refetchInterval: (query) => {
+      const d = query.state.data as ConversationDetail | undefined;
+      return d?.mode === 'human' ? 4000 : 1500;
+    },
+  });
+
+  // Derived state — single source of truth is the detail query. This fixes
+  // a pre-existing race where a stale in-flight detail fetch could clobber
+  // local mode/promptNotes set by the user a moment earlier.
+  const mode: 'ai' | 'human' = (detail?.mode === 'human' ? 'human' : 'ai');
+  const promptNotes = detail?.ai_prompt_notes || '';
+
+  // Clear selection if the conversation 404s (e.g. deleted from DB).
+  useEffect(() => {
+    if (selectedId && detailError) setSelectedId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detailError, selectedId]);
+
+  // === Local UI-only state ===
   const [input, setInput] = useState('');
   const [assist, setAssist] = useState<AssistResult | null>(null);
-  const [sending, setSending] = useState(false);
-  const [mode, setMode] = useState<'ai' | 'human'>('ai');
   const [translations, setTranslations] = useState<Map<number, string>>(new Map());
   const [aiReply, setAiReply] = useState('');
-  const [aiReplyLoading, setAiReplyLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
-  const [promptNotes, setPromptNotes] = useState<string>('');
   const [aiTranslation, setAiTranslation] = useState('');
-  const [aiTranslating, setAiTranslating] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: 'info' | 'warn' | 'error' } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
-  const [notifSettings, setNotifSettings] = useState<Settings | null>(null);
-  const prevConvsRef = useRef<Conversation[]>([]);
   const titleFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const originalTitle = useRef(document.title);
   const [unreadCount, setUnreadCount] = useState(0);
   const [brokenImgs, setBrokenImgs] = useState<Set<number>>(new Set());
 
+  // Baseline guard prevents false "new message" notifications on the very
+  // first data arrival, including tab-switch returns where React Query
+  // serves cached data immediately.
+  const lastSeenRef = useRef<Map<number, string>>(new Map());
+  const hasBaselineRef = useRef(false);
 
-  // Request notification permission on mount
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, []);
 
-  // Load settings (frequent poll so global toggle changes reflect quickly)
-  useEffect(() => {
-    getSettings().then(setNotifSettings).catch(() => {});
-    const timer = setInterval(() => {
-      getSettings().then(setNotifSettings).catch(() => {});
-    }, 2000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Title flash effect
   useEffect(() => {
     if (unreadCount > 0 && notifSettings?.notification_enabled && notifSettings?.notification_title_flash) {
       let show = true;
@@ -251,70 +266,43 @@ export default function Conversations() {
     };
   }, [unreadCount, notifSettings?.notification_enabled, notifSettings?.notification_title_flash]);
 
-  // Clear unread on window focus
   useEffect(() => {
     const onFocus = () => setUnreadCount(0);
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, []);
 
-  // Load conversation list + detect new messages
+  // Detect new messages each time the convs query refreshes.
   useEffect(() => {
-    getConversations().then((data) => {
-      prevConvsRef.current = data;
-      setConvs(data);
-    }).catch(() => {});
-    const timer = setInterval(() => {
-      getConversations().then((data) => {
-        if (notifSettings?.notification_enabled && prevConvsRef.current.length > 0) {
-          const prevMap = new Map(prevConvsRef.current.map(c => [c.id, c.updated_at]));
-          for (const c of data) {
-            // Only notify when last message is from the user (not our own replies)
-            if (c.last_message_role !== 'user') continue;
-            const prevTime = prevMap.get(c.id);
-            const isNew = !prevTime && c.last_message;
-            const isUpdated = prevTime && c.updated_at !== prevTime && c.last_message;
-            if (isNew || isUpdated) {
-              if (notifSettings.notification_sound) playNotificationSound();
-              if (notifSettings.notification_desktop) {
-                showDesktopNotification(
-                  `${isNew ? '新对话' : '新消息'} - ${c.ig_username || c.ig_user_id}`,
-                  c.last_message || ''
-                );
-              }
-              if (notifSettings.notification_title_flash) {
-                setUnreadCount(prev => prev + 1);
-              }
-              break;
-            }
+    if (!convs.length && !hasBaselineRef.current) return;
+    if (!hasBaselineRef.current) {
+      for (const c of convs) lastSeenRef.current.set(c.id, c.updated_at);
+      hasBaselineRef.current = true;
+      return;
+    }
+    if (notifSettings?.notification_enabled) {
+      for (const c of convs) {
+        if (c.last_message_role !== 'user') continue;
+        const prevTime = lastSeenRef.current.get(c.id);
+        const isNew = !prevTime && c.last_message;
+        const isUpdated = prevTime && c.updated_at !== prevTime && c.last_message;
+        if (isNew || isUpdated) {
+          if (notifSettings.notification_sound) playNotificationSound();
+          if (notifSettings.notification_desktop) {
+            showDesktopNotification(
+              `${isNew ? '新对话' : '新消息'} - ${c.ig_username || c.ig_user_id}`,
+              c.last_message || ''
+            );
           }
+          if (notifSettings.notification_title_flash) {
+            setUnreadCount(prev => prev + 1);
+          }
+          break;
         }
-        prevConvsRef.current = data;
-        setConvs(data);
-      }).catch(() => {});
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [notifSettings]);
-
-  // Load conversation detail
-  const loadDetail = useCallback(() => {
-    if (!selectedId) return;
-    getConversation(selectedId).then((data) => {
-      setDetail(data);
-      setMode(data.mode as 'ai' | 'human');
-      setPromptNotes(data.ai_prompt_notes || '');
-    }).catch(() => {
-      setSelectedId(null);
-      setDetail(null);
-    });
-  }, [selectedId]);
-
-  useEffect(() => {
-    loadDetail();
-    const interval = mode === 'ai' ? 1500 : 4000;
-    const timer = setInterval(loadDetail, interval);
-    return () => clearInterval(timer);
-  }, [loadDetail, mode]);
+      }
+    }
+    for (const c of convs) lastSeenRef.current.set(c.id, c.updated_at);
+  }, [convs, notifSettings]);
 
   useEffect(() => {
     setTimeout(() => {
@@ -323,10 +311,104 @@ export default function Conversations() {
     }, 50);
   }, [detail?.messages?.length, selectedId]);
 
+  const showToast = (text: string, type: 'info' | 'warn' | 'error' = 'info') => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
+  const invalidateConv = () => {
+    queryClient.invalidateQueries({ queryKey: ['conversation', selectedId] });
+    queryClient.invalidateQueries({ queryKey: ['conversations'] });
+  };
+
+  // === Mutations ===
+  const sendMutation = useMutation({
+    mutationFn: (vars: { text: string; isAi?: boolean; skipTranslation?: boolean }) =>
+      sendMessage(detail!.id, vars.text, vars.isAi ?? false, vars.skipTranslation ?? false),
+    onSuccess: (res) => {
+      if (!res.ig_sent) {
+        showToast('消息已保存，但未能发送到 Instagram（可能是测试用户）', 'warn');
+      }
+      invalidateConv();
+    },
+    onError: () => showToast('发送失败，请重试', 'error'),
+  });
+
+  const assistMutation = useMutation({
+    mutationFn: (text: string) => assistInput(detail!.id, text),
+    onSuccess: (result) => setAssist(result),
+  });
+
+  const generateReplyMutation = useMutation({
+    mutationFn: (prompt: string) => generateAIReply(detail!.id, prompt || undefined),
+    onSuccess: (res) => {
+      if (!res.reply) {
+        showToast('AI 返回了空回复，请重试', 'warn');
+        return;
+      }
+      setAiReply(res.reply);
+      setAiPrompt('');
+      // Server-side appended prompt notes — patch the cached detail so the
+      // indicator updates immediately without waiting for the next poll.
+      if (res.prompt_notes !== undefined && selectedId) {
+        queryClient.setQueryData<ConversationDetail | null>(
+          ['conversation', selectedId],
+          (old) => (old ? { ...old, ai_prompt_notes: res.prompt_notes } : old),
+        );
+      }
+    },
+    onError: (e: any) => {
+      const msg = e?.response?.data?.detail || e?.message || '生成失败';
+      showToast(`生成回复失败：${msg}`, 'error');
+      setAiReply('');
+    },
+  });
+
+  const translateReplyMutation = useMutation({
+    mutationFn: (text: string) => translateMessage(detail!.id, text),
+    onSuccess: (res) => setAiTranslation(res.translated),
+    onError: () => showToast('翻译失败，请重试', 'error'),
+  });
+
+  const modeSwitchMutation = useMutation({
+    mutationFn: (next: 'ai' | 'human') => updateConversationMode(detail!.id, next),
+    onMutate: async (next) => {
+      // Optimistic: flip mode immediately so polling cadence and UI react
+      // without waiting for the server round-trip.
+      if (!selectedId) return;
+      await queryClient.cancelQueries({ queryKey: ['conversation', selectedId] });
+      const previous = queryClient.getQueryData<ConversationDetail>(['conversation', selectedId]);
+      queryClient.setQueryData<ConversationDetail | null>(
+        ['conversation', selectedId],
+        (old) => (old ? { ...old, mode: next } : old),
+      );
+      setAssist(null);
+      return { previous };
+    },
+    onError: (_e, _next, ctx) => {
+      if (ctx?.previous && selectedId) {
+        queryClient.setQueryData(['conversation', selectedId], ctx.previous);
+      }
+      showToast('模式切换失败', 'error');
+    },
+  });
+
+  const clearNotesMutation = useMutation({
+    mutationFn: () => clearPromptNotes(detail!.id),
+    onSuccess: () => {
+      if (selectedId) {
+        queryClient.setQueryData<ConversationDetail | null>(
+          ['conversation', selectedId],
+          (old) => (old ? { ...old, ai_prompt_notes: null } : old),
+        );
+      }
+      showToast('已清空累积指令', 'info');
+    },
+  });
+
+  // === Handlers ===
   const handleTranslateMsg = (msgId: number, content: string) => {
     if (translations.has(msgId)) {
-      // Toggle off
       setTranslations((prev) => { const next = new Map(prev); next.delete(msgId); return next; });
       return;
     }
@@ -343,121 +425,64 @@ export default function Conversations() {
 
   const selectConversation = (id: number) => {
     setSelectedId(id);
-    setDetail(null);
     setInput('');
     setAssist(null);
     setTranslations(new Map());
     setAiReply('');
     setAiPrompt('');
-    setPromptNotes('');
     setAiTranslation('');
     setToast(null);
   };
 
-  const loadAiReply = async () => {
+  const loadAiReply = () => {
     if (!detail) return;
-    setAiReplyLoading(true);
-    try {
-      const res = await generateAIReply(detail.id, aiPrompt || undefined);
-      if (res.reply) {
-        setAiReply(res.reply);
-        setAiPrompt('');
-        if (res.prompt_notes !== undefined) setPromptNotes(res.prompt_notes);
-      } else {
-        showToast('AI 返回了空回复，请重试', 'warn');
-      }
-    } catch (e: any) {
-      const msg = e?.response?.data?.detail || e?.message || '生成失败';
-      showToast(`生成回复失败：${msg}`, 'error');
-      setAiReply('');
-    }
-    setAiReplyLoading(false);
+    generateReplyMutation.mutate(aiPrompt);
   };
 
-  const handleClearPromptNotes = async () => {
+  const handleClearPromptNotes = () => {
     if (!detail) return;
-    await clearPromptNotes(detail.id);
-    setPromptNotes('');
-    showToast('已清空累积指令', 'info');
+    clearNotesMutation.mutate();
   };
 
-  const handleModeSwitch = async (next: 'ai' | 'human') => {
+  const handleModeSwitch = (next: 'ai' | 'human') => {
     if (!detail || next === mode) return;
-    await updateConversationMode(detail.id, next);
-    setDetail({ ...detail, mode: next });
-    setMode(next);
-    setAssist(null);
+    modeSwitchMutation.mutate(next);
   };
 
-  const showToast = (text: string, type: 'info' | 'warn' | 'error' = 'info') => {
-    setToast({ text, type });
-    setTimeout(() => setToast(null), 4000);
-  };
-
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!detail || !input.trim()) return;
-    setSending(true);
-    try {
-      const res = await sendMessage(detail.id, input);
-      setInput('');
-      setAssist(null);
-      if (!res.ig_sent) {
-        showToast('消息已保存，但未能发送到 Instagram（可能是测试用户）', 'warn');
-      }
-      loadDetail();
-    } catch {
-      showToast('发送失败，请重试', 'error');
-    }
-    setSending(false);
+    const text = input;
+    setInput('');
+    setAssist(null);
+    sendMutation.mutate({ text });
   };
 
-  const handleTranslateAiReply = async () => {
+  const handleTranslateAiReply = () => {
     if (!detail || !aiReply.trim()) return;
-    setAiTranslating(true);
-    try {
-      const res = await translateMessage(detail.id, aiReply);
-      setAiTranslation(res.translated);
-    } catch {
-      showToast('翻译失败，请重试', 'error');
-    }
-    setAiTranslating(false);
+    translateReplyMutation.mutate(aiReply);
   };
 
-  const handleSendAiReply = async () => {
+  const handleSendAiReply = () => {
     if (!detail || !aiReply.trim()) return;
-    setSending(true);
-    try {
-      let textToSend = aiReply;
-      let skipTranslation = false;
-      if (aiTranslation.trim()) {
-        // Use the already-translated (and possibly edited) English text
-        textToSend = aiTranslation;
-        skipTranslation = true;
-      }
-      const res = await sendMessage(detail.id, textToSend, true, skipTranslation);
-      setAiReply('');
-      setAiTranslation('');
-      if (!res.ig_sent) {
-        showToast('AI 回复已保存，但未能发送到 Instagram', 'warn');
-      }
-      loadDetail();
-    } catch {
-      showToast('发送失败，请重试', 'error');
-    }
-    setSending(false);
+    const useTranslation = aiTranslation.trim().length > 0;
+    const textToSend = useTranslation ? aiTranslation : aiReply;
+    setAiReply('');
+    setAiTranslation('');
+    sendMutation.mutate({ text: textToSend, isAi: true, skipTranslation: useTranslation });
   };
 
-  const handleAssist = async () => {
-    if (!detail || !input.trim() || assisting) return;
-    setAssisting(true);
-    try {
-      const result = await assistInput(detail.id, input);
-      setAssist(result);
-    } catch { /* ignore */ }
-    setAssisting(false);
+  const handleAssist = () => {
+    if (!detail || !input.trim() || assistMutation.isPending) return;
+    assistMutation.mutate(input);
   };
 
-  const hasChinese = (text: string) => /[\u4e00-\u9fff]/.test(text);
+  // Loading flags consumed by JSX
+  const sending = sendMutation.isPending;
+  const aiReplyLoading = generateReplyMutation.isPending;
+  const aiTranslating = translateReplyMutation.isPending;
+  const assisting = assistMutation.isPending;
+
+  const hasChinese = (text: string) => /[一-鿿]/.test(text);
 
   const username = detail ? (detail.ig_username || detail.ig_user_id) : '';
   const initials = username.slice(0, 2).toUpperCase();
@@ -670,20 +695,7 @@ export default function Conversations() {
               </div>
             </div>
 
-            {/* AI Mode Input.
-                Layout:
-                  outer-drag                       (flex-shrink: 0)
-                  ┌─ flex middle area ──────────┐  (flex: 1, min-height: 0)
-                  │   prompt section            │   ← flex-basis aiPromptSize
-                  │   inner drag                │
-                  │   preview label             │
-                  │   preview textarea (grows)  │
-                  └─────────────────────────────┘
-                  send button row                  (flex-shrink: 0, ANCHORED)
-
-                The send button row is OUTSIDE the resizable middle area,
-                so no amount of inner dragging can ever push it out of
-                view. The middle area absorbs all variation. */}
+            {/* AI Mode Input */}
             {mode === 'ai' && (
               <div
                 ref={aiPanelSize.targetRef as React.RefObject<HTMLDivElement>}
@@ -699,18 +711,14 @@ export default function Conversations() {
                   overflow: 'hidden',
                 }}
               >
-                {/* Outer drag — adjust whole panel size */}
                 <div
                   style={{ ...dragHandleStyle, flexShrink: 0 }}
                   onMouseDown={aiPanelSize.startDrag}
                   title="拖动调整整个面板高度"
                 />
 
-                {/* Middle flex area — contains prompt + preview, takes
-                    whatever space is left after the bottom button row. */}
                 <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
 
-                  {/* Prompt section */}
                   <div
                     ref={aiPromptSize.targetRef as React.RefObject<HTMLDivElement>}
                     style={{
@@ -754,7 +762,6 @@ export default function Conversations() {
                     </button>
                   </div>
 
-                  {/* Accumulated prompt notes indicator */}
                   {promptNotes && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '3px 0', flexShrink: 0 }}>
                       <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flex: 1, lineHeight: 1.5 }}>
@@ -770,7 +777,6 @@ export default function Conversations() {
                     </div>
                   )}
 
-                  {/* Inner drag — redistribute between prompt and preview */}
                   <div
                     style={innerSplitterStyle}
                     onMouseDown={aiPromptSize.startDrag}
@@ -778,9 +784,7 @@ export default function Conversations() {
                   >
                   </div>
 
-                  {/* Preview section — two columns: Chinese | English translation */}
                   <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 6 }}>
-                    {/* Left: Chinese draft */}
                     <div
                       className="ai-preview"
                       style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
@@ -809,7 +813,6 @@ export default function Conversations() {
                       )}
                     </div>
 
-                    {/* Translate button column */}
                     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flexShrink: 0 }}>
                       <button
                         className="btn"
@@ -822,7 +825,6 @@ export default function Conversations() {
                       </button>
                     </div>
 
-                    {/* Right: English translation */}
                     <div
                       className="ai-preview"
                       style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}
@@ -860,7 +862,6 @@ export default function Conversations() {
                   </div>
                 </div>
 
-                {/* Send button — anchored at bottom of panel, never resizable */}
                 <div className="flex gap-8 mt-8" style={{ flexShrink: 0 }}>
                   <button
                     className="btn-primary"
@@ -874,13 +875,7 @@ export default function Conversations() {
               </div>
             )}
 
-            {/* Human Mode Input.
-                Layout (mirrors AI mode):
-                  outer-drag
-                  ┌─ flex middle area ──┐
-                  │   (assist preview if any) + input textarea
-                  └─────────────────────┘
-                  bottom button row (anchored, never resizable)              */}
+            {/* Human Mode Input */}
             {mode === 'human' && (
               <div
                 ref={humanPanelSize.targetRef as React.RefObject<HTMLDivElement>}
@@ -902,7 +897,6 @@ export default function Conversations() {
                   title="拖动调整面板高度"
                 />
 
-                {/* Middle flex area — assist preview + input textarea */}
                 <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                   {assist && (
                     <>
@@ -943,7 +937,6 @@ export default function Conversations() {
                           </button>
                         </div>
                       </div>
-                      {/* Inner splitter between assist preview and input textarea */}
                       <div
                         style={innerSplitterStyle}
                         onMouseDown={humanAssistSize.startDrag}
@@ -967,7 +960,6 @@ export default function Conversations() {
                   />
                 </div>
 
-                {/* Bottom button row — anchored, never resizable */}
                 <div className="flex gap-8 mt-8" style={{ alignItems: 'center', flexShrink: 0 }}>
                   {input.trim() && (
                     <button
