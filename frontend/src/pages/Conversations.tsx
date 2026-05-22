@@ -16,6 +16,32 @@ import type { ConversationDetail, AssistResult } from '../types';
 
 const SELECTED_CONV_KEY = 'instabot.selectedConv';
 
+// Per-conversation draft state (textarea contents) survives tab switches,
+// page reloads, and even mid-generation unmounts — the generateReply
+// mutation writes its result straight to the cache + sessionStorage, so
+// navigating away mid-stream doesn't drop the reply.
+type Draft = { reply: string; translation: string; prompt: string; input: string };
+const EMPTY_DRAFT: Draft = { reply: '', translation: '', prompt: '', input: '' };
+const draftKey = (id: number) => `instabot.draft.${id}`;
+function loadDraft(id: number | null): Draft {
+  if (!id) return EMPTY_DRAFT;
+  try {
+    const raw = sessionStorage.getItem(draftKey(id));
+    if (raw) return { ...EMPTY_DRAFT, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return EMPTY_DRAFT;
+}
+function persistDraft(id: number | null, draft: Draft) {
+  if (!id) return;
+  try {
+    if (!draft.reply && !draft.translation && !draft.prompt && !draft.input) {
+      sessionStorage.removeItem(draftKey(id));
+    } else {
+      sessionStorage.setItem(draftKey(id), JSON.stringify(draft));
+    }
+  } catch { /* ignore */ }
+}
+
 const avatarColors = ['avatar-blue', 'avatar-pink', 'avatar-green', 'avatar-amber'];
 
 // Notification sound using Web Audio API (no file dependency)
@@ -222,13 +248,36 @@ export default function Conversations() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailError, selectedId]);
 
+  // === Per-conversation draft (cache-backed, sessionStorage-persistent) ===
+  // Stored in React Query cache so writes from a mutation's onSuccess survive
+  // component unmount — i.e. user can fire "generate reply", switch tabs,
+  // come back, and find the generated draft waiting.
+  const { data: draft = EMPTY_DRAFT } = useQuery<Draft>({
+    queryKey: ['draft', selectedId],
+    queryFn: () => loadDraft(selectedId),
+    enabled: !!selectedId,
+    staleTime: Infinity,
+  });
+  const aiReply = draft.reply;
+  const aiPrompt = draft.prompt;
+  const aiTranslation = draft.translation;
+  const input = draft.input;
+  const updateDraft = (patch: Partial<Draft>) => {
+    if (!selectedId) return;
+    queryClient.setQueryData<Draft>(['draft', selectedId], (old) => {
+      const next = { ...(old ?? EMPTY_DRAFT), ...patch };
+      persistDraft(selectedId, next);
+      return next;
+    });
+  };
+  const setAiReply = (v: string) => updateDraft({ reply: v });
+  const setAiPrompt = (v: string) => updateDraft({ prompt: v });
+  const setAiTranslation = (v: string) => updateDraft({ translation: v });
+  const setInput = (v: string) => updateDraft({ input: v });
+
   // === Local UI-only state ===
-  const [input, setInput] = useState('');
   const [assist, setAssist] = useState<AssistResult | null>(null);
   const [translations, setTranslations] = useState<Map<number, string>>(new Map());
-  const [aiReply, setAiReply] = useState('');
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiTranslation, setAiTranslation] = useState('');
   const [toast, setToast] = useState<{ text: string; type: 'info' | 'warn' | 'error' } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -346,8 +395,16 @@ export default function Conversations() {
         showToast('AI 返回了空回复，请重试', 'warn');
         return;
       }
-      setAiReply(res.reply);
-      setAiPrompt('');
+      // Write directly to cache + sessionStorage instead of setAiReply, so
+      // the result survives even if the component unmounted while the
+      // mutation was in flight (user switched tabs mid-generation).
+      if (selectedId) {
+        queryClient.setQueryData<Draft>(['draft', selectedId], (old) => {
+          const next = { ...(old ?? EMPTY_DRAFT), reply: res.reply, prompt: '' };
+          persistDraft(selectedId, next);
+          return next;
+        });
+      }
       // Server-side appended prompt notes — patch the cached detail so the
       // indicator updates immediately without waiting for the next poll.
       if (res.prompt_notes !== undefined && selectedId) {
@@ -424,13 +481,12 @@ export default function Conversations() {
   };
 
   const selectConversation = (id: number) => {
+    // Draft fields (input, aiReply, aiPrompt, aiTranslation) are keyed by
+    // conversation id in cache + sessionStorage, so changing selectedId
+    // automatically swaps in the new conversation's draft. Don't clear them.
     setSelectedId(id);
-    setInput('');
     setAssist(null);
     setTranslations(new Map());
-    setAiReply('');
-    setAiPrompt('');
-    setAiTranslation('');
     setToast(null);
   };
 
