@@ -235,11 +235,6 @@ class MessageHandler:
         from app.ai.prompt import build_reply_directive
         auto_extra = build_reply_directive(is_first=is_first, for_draft=False)
 
-        if image_urls:
-            logger.info(
-                f"handle_dm conv={conv_id} model={getattr(self.ai, 'model', '?')} "
-                f"image_urls={image_urls}"
-            )
         try:
             reply_text = await self.ai.generate_reply(
                 msg.text or "",
