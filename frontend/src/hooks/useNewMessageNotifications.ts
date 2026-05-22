@@ -80,15 +80,6 @@ export function useNewMessageNotifications() {
     refetchIntervalInBackground: true,
   });
 
-  // Temporary diagnostic: log every time the hook actually re-runs its
-  // effect, so we can confirm in DevTools console whether it's firing on
-  // non-/conversations pages. Remove once the issue is confirmed fixed.
-  // eslint-disable-next-line no-console
-  console.debug(
-    '[notif-hook] render',
-    { route: window.location.pathname, dataUpdatedAt, convCount: convs.length, hasBaseline: undefined },
-  );
-
   // Map: conversation id -> last seen message id. Baseline is established on
   // the first non-empty fetch, so the initial load never fires notifications.
   const lastSeenIdRef = useRef<Map<number, number>>(new Map());
@@ -133,14 +124,6 @@ export function useNewMessageNotifications() {
 
   // Core diff: detect new user-origin messages by message-id advance.
   useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.debug('[notif-hook] diff-effect', {
-      route: window.location.pathname,
-      dataUpdatedAt,
-      convCount: convs.length,
-      hasBaseline: hasBaselineRef.current,
-      notifEnabled: settings?.notification_enabled,
-    });
     // dataUpdatedAt is 0 until the query has actually completed at least
     // once. Without this guard the effect runs on the initial render with
     // the default `convs = []`, prematurely marks baseline as established,
