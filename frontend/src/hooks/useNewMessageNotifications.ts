@@ -73,9 +73,11 @@ export function useNewMessageNotifications() {
     refetchIntervalInBackground: true,
   });
 
+  // Wrap in an arrow so React Query doesn't pass its QueryFunctionContext
+  // object as the `channel` arg of getConversations.
   const { data: convs = [], dataUpdatedAt } = useQuery({
-    queryKey: ['conversations'],
-    queryFn: getConversations,
+    queryKey: ['conversations', 'instagram'],
+    queryFn: () => getConversations('instagram'),
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
   });
