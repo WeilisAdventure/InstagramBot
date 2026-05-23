@@ -57,6 +57,15 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks):
     if data.get("object") != "instagram":
         return {"status": "ignored"}
 
+    # TEMP: dump full DM payloads so we can see whether Meta sends link-preview
+    # metadata (titles, og:image, etc.) that we currently ignore.
+    # Remove once link-preview behavior is understood.
+    import json as _json
+    for _entry in data.get("entry", []):
+        for _event in _entry.get("messaging", []) or []:
+            if _event.get("message"):
+                logger.info(f"RAW_DM_PAYLOAD: {_json.dumps(_event, ensure_ascii=False)}")
+
     handler = request.app.state.message_handler
 
     from app.webhook.parser import parse_messaging_events, parse_comment_events
