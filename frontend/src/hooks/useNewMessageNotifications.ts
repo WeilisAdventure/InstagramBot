@@ -71,6 +71,13 @@ export function useNewMessageNotifications() {
     // background — i.e. exactly when the operator most needs to know
     // a new DM came in.
     refetchIntervalInBackground: true,
+    // Skip the default re-render-on-every-refetch. We only care when
+    // `data` actually changes (React Query does structural sharing, so
+    // identical responses stay referentially equal). Without this, every
+    // poll re-rendered the consumer (Layout) even when nothing happened,
+    // cascading down to all child pages and breaking Chinese IME
+    // composition in any focused textarea.
+    notifyOnChangeProps: ['data'],
   });
 
   // Wrap in an arrow so React Query doesn't pass its QueryFunctionContext
@@ -80,6 +87,11 @@ export function useNewMessageNotifications() {
     queryFn: () => getConversations('instagram'),
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
+    // Same reasoning: only re-render when the conversation list itself
+    // changes, not on every successful poll. `dataUpdatedAt` is still
+    // read inside the diff effect's deps — when data changes we get a
+    // fresh value alongside it, so correctness is preserved.
+    notifyOnChangeProps: ['data'],
   });
 
   // Map: conversation id -> last seen message id. Baseline is established on

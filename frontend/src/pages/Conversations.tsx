@@ -193,6 +193,11 @@ export default function Conversations() {
     queryKey: ['settings'],
     queryFn: getSettings,
     refetchInterval: 2000,
+    // Only re-render when settings actually change, not on every poll.
+    // Re-rendering this page every 2s breaks Chinese IME composition in
+    // any focused textarea (the controlled `value` prop gets re-asserted
+    // mid-composition and the IME commits raw pinyin instead).
+    notifyOnChangeProps: ['data'],
   });
 
   // Wrap in an arrow so React Query doesn't pass its QueryFunctionContext
@@ -201,6 +206,7 @@ export default function Conversations() {
     queryKey: ['conversations', 'instagram'],
     queryFn: () => getConversations('instagram'),
     refetchInterval: 2000,
+    notifyOnChangeProps: ['data'],
   });
 
   const { data: detail = null, error: detailError } = useQuery({
@@ -213,6 +219,7 @@ export default function Conversations() {
       const d = query.state.data as ConversationDetail | undefined;
       return d?.mode === 'human' ? 4000 : 1500;
     },
+    notifyOnChangeProps: ['data', 'error'],
   });
 
   // Derived state — single source of truth is the detail query. This fixes
