@@ -13,7 +13,6 @@ import {
   clearPromptNotes,
 } from '../api/client';
 import type { ConversationDetail, AssistResult } from '../types';
-import { useImeSafe } from '../hooks/useImeSafe';
 
 const SELECTED_CONV_KEY = 'instabot.selectedConv';
 
@@ -261,13 +260,6 @@ export default function Conversations() {
   const setAiPrompt = (v: string) => updateDraft({ prompt: v });
   const setAiTranslation = (v: string) => updateDraft({ translation: v });
   const setInput = (v: string) => updateDraft({ input: v });
-  // IME-safe handlers — see useImeSafe. Each call creates its own
-  // composing-state ref via useRef; declaring them at component top
-  // satisfies the rules-of-hooks "always call in the same order" rule.
-  const inputIme = useImeSafe(setInput);
-  const aiReplyIme = useImeSafe(setAiReply);
-  const aiPromptIme = useImeSafe(setAiPrompt);
-  const aiTranslationIme = useImeSafe(setAiTranslation);
 
   // === Local UI-only state ===
   const [assist, setAssist] = useState<AssistResult | null>(null);
@@ -786,7 +778,7 @@ export default function Conversations() {
                     <textarea
                       className="flex-1"
                       value={aiPrompt}
-                      {...aiPromptIme}
+                      onChange={(e) => setAiPrompt(e.target.value)}
                       placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」...'
                       style={{
                         fontSize: 12,
@@ -847,7 +839,7 @@ export default function Conversations() {
                       ) : (
                         <textarea
                           value={aiReply}
-                          {...aiReplyIme}
+                          onChange={(e) => setAiReply(e.target.value)}
                           style={{
                             width: '100%',
                             flex: 1,
@@ -894,7 +886,7 @@ export default function Conversations() {
                       </div>
                       <textarea
                         value={aiTranslation}
-                        {...aiTranslationIme}
+                        onChange={(e) => setAiTranslation(e.target.value)}
                         placeholder="点「译 →」生成，或直接输入英文..."
                         style={{
                           width: '100%',
@@ -997,7 +989,7 @@ export default function Conversations() {
                   )}
                   <textarea
                     value={input}
-                    {...inputIme}
+                    onChange={(e) => setInput(e.target.value)}
                     placeholder="输入消息... — 回车换行，按右侧按钮发送"
                     style={{
                       width: '100%',
