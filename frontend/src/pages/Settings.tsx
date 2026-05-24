@@ -14,6 +14,7 @@ import {
 } from '../api/client';
 import type { KnowledgeSection } from '../api/client';
 import type { Settings as SettingsType, Preference } from '../types';
+import { useImeSafe } from '../hooks/useImeSafe';
 
 const PRESET_MODELS = [
   'claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-opus-4-6',
@@ -44,6 +45,10 @@ export default function Settings() {
   const [kbLoading, setKbLoading] = useState(false);
   const [kbSaved, setKbSaved] = useState(false);
   const [kbSections, setKbSections] = useState<KnowledgeSection[]>([]);
+  // IME-safe input handlers — see useImeSafe.
+  const welcomeIme = useImeSafe(setWelcomeText);
+  const kbContentIme = useImeSafe(setKbContent);
+  const newPrefIme = useImeSafe(setNewPref);
 
   const reloadPreferences = () => {
     getPreferences().then(setPreferences).catch(() => {});
@@ -421,7 +426,7 @@ export default function Settings() {
             <input
               className="flex-1"
               value={newPref}
-              onChange={(e) => setNewPref(e.target.value)}
+              {...newPrefIme}
               onKeyDown={(e) => e.key === 'Enter' && addPreference()}
               placeholder="手动添加一条偏好，如：少用感叹号"
               style={{ fontSize: 12, padding: '5px 8px' }}
@@ -501,7 +506,7 @@ export default function Settings() {
                 }}
                 placeholder="如：您好！感谢您联系 Fleet Now Delivery，请问有什么可以帮到您？"
                 value={welcomeText}
-                onChange={(e) => setWelcomeText(e.target.value)}
+                {...welcomeIme}
                 onBlur={() => {
                   if (welcomeText !== settings.welcome_message_text) {
                     update({ welcome_message_text: welcomeText });
@@ -612,7 +617,7 @@ export default function Settings() {
                   boxSizing: 'border-box',
                 }}
                 value={kbContent}
-                onChange={(e) => setKbContent(e.target.value)}
+                {...kbContentIme}
               />
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, gap: 8, alignItems: 'center' }}>
