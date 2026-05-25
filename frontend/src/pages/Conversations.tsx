@@ -13,6 +13,7 @@ import {
   clearPromptNotes,
 } from '../api/client';
 import type { ConversationDetail, AssistResult } from '../types';
+import { useUncontrolledText } from '../hooks/useUncontrolledText';
 
 const SELECTED_CONV_KEY = 'instabot.selectedConv';
 
@@ -260,6 +261,14 @@ export default function Conversations() {
   const setAiPrompt = (v: string) => updateDraft({ prompt: v });
   const setAiTranslation = (v: string) => updateDraft({ translation: v });
   const setInput = (v: string) => updateDraft({ input: v });
+
+  // Uncontrolled textarea bindings — see useUncontrolledText. We need
+  // these because React 19's controlled `value` prop fights Chinese IME
+  // composition, leaking raw pinyin chars into the committed text.
+  const inputBinding = useUncontrolledText<HTMLTextAreaElement>(input, setInput);
+  const aiReplyBinding = useUncontrolledText<HTMLTextAreaElement>(aiReply, setAiReply);
+  const aiPromptBinding = useUncontrolledText<HTMLTextAreaElement>(aiPrompt, setAiPrompt);
+  const aiTranslationBinding = useUncontrolledText<HTMLTextAreaElement>(aiTranslation, setAiTranslation);
 
   // === Local UI-only state ===
   const [assist, setAssist] = useState<AssistResult | null>(null);
@@ -777,8 +786,7 @@ export default function Conversations() {
                   >
                     <textarea
                       className="flex-1"
-                      value={aiPrompt}
-                      onChange={(e) => setAiPrompt(e.target.value)}
+                      {...aiPromptBinding}
                       placeholder='提示词（可选）：如「用中文回复」、「语气友善一些」...'
                       style={{
                         fontSize: 12,
@@ -838,8 +846,7 @@ export default function Conversations() {
                         <div className="text-xs" style={{ padding: '4px 0' }}>正在生成...</div>
                       ) : (
                         <textarea
-                          value={aiReply}
-                          onChange={(e) => setAiReply(e.target.value)}
+                          {...aiReplyBinding}
                           style={{
                             width: '100%',
                             flex: 1,
@@ -885,8 +892,7 @@ export default function Conversations() {
                         )}
                       </div>
                       <textarea
-                        value={aiTranslation}
-                        onChange={(e) => setAiTranslation(e.target.value)}
+                        {...aiTranslationBinding}
                         placeholder="点「译 →」生成，或直接输入英文..."
                         style={{
                           width: '100%',
@@ -988,8 +994,7 @@ export default function Conversations() {
                     </>
                   )}
                   <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    {...inputBinding}
                     placeholder="输入消息... — 回车换行，按右侧按钮发送"
                     style={{
                       width: '100%',

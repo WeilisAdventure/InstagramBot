@@ -14,6 +14,7 @@ import {
 } from '../api/client';
 import type { KnowledgeSection } from '../api/client';
 import type { Settings as SettingsType, Preference } from '../types';
+import { useUncontrolledText } from '../hooks/useUncontrolledText';
 
 const PRESET_MODELS = [
   'claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-opus-4-6',
@@ -44,6 +45,11 @@ export default function Settings() {
   const [kbLoading, setKbLoading] = useState(false);
   const [kbSaved, setKbSaved] = useState(false);
   const [kbSections, setKbSections] = useState<KnowledgeSection[]>([]);
+
+  // Uncontrolled bindings to avoid React 19 IME breakage; see useUncontrolledText.
+  const welcomeBinding = useUncontrolledText<HTMLTextAreaElement>(welcomeText, setWelcomeText);
+  const kbContentBinding = useUncontrolledText<HTMLTextAreaElement>(kbContent, setKbContent);
+  const newPrefBinding = useUncontrolledText<HTMLInputElement>(newPref, setNewPref);
 
   const reloadPreferences = () => {
     getPreferences().then(setPreferences).catch(() => {});
@@ -420,8 +426,7 @@ export default function Settings() {
           <div style={{ padding: '0 12px 8px', display: 'flex', gap: 6 }}>
             <input
               className="flex-1"
-              value={newPref}
-              onChange={(e) => setNewPref(e.target.value)}
+              {...newPrefBinding}
               onKeyDown={(e) => e.key === 'Enter' && addPreference()}
               placeholder="手动添加一条偏好，如：少用感叹号"
               style={{ fontSize: 12, padding: '5px 8px' }}
@@ -500,8 +505,7 @@ export default function Settings() {
                   outline: 'none',
                 }}
                 placeholder="如：您好！感谢您联系 Fleet Now Delivery，请问有什么可以帮到您？"
-                value={welcomeText}
-                onChange={(e) => setWelcomeText(e.target.value)}
+                {...welcomeBinding}
                 onBlur={() => {
                   if (welcomeText !== settings.welcome_message_text) {
                     update({ welcome_message_text: welcomeText });
@@ -611,8 +615,7 @@ export default function Settings() {
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
-                value={kbContent}
-                onChange={(e) => setKbContent(e.target.value)}
+                {...kbContentBinding}
               />
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, gap: 8, alignItems: 'center' }}>
