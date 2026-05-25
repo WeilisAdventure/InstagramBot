@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -307,6 +307,28 @@ export default function Conversations() {
   // Notification dispatch (sound / desktop / title flash) is handled globally
   // by useNewMessageNotifications, mounted at the Layout level.
 
+  // === Conv-list scroll pinning ===
+  // When we optimistically reorder convs on send, React moves the selected
+  // conv's DOM node to the top of the scroll container. In some browsers /
+  // CSS layouts that pulls scrollTop back to 0 (or shifts the viewport) even
+  // though the DOM node is reused via key={c.id}. We pin scrollTop here:
+  // every scroll event records the current position, and every render
+  // restores it before paint. This is safe because nothing in this page
+  // ever wants to programmatically scroll the conv list — operator scroll
+  // is the only intended source of motion.
+  const convListRef = useRef<HTMLDivElement | null>(null);
+  const convListScrollTopRef = useRef(0);
+  const onConvListScroll = () => {
+    convListScrollTopRef.current = convListRef.current?.scrollTop ?? 0;
+  };
+  useLayoutEffect(() => {
+    const el = convListRef.current;
+    if (!el) return;
+    if (el.scrollTop !== convListScrollTopRef.current) {
+      el.scrollTop = convListScrollTopRef.current;
+    }
+  }, [convs]);
+
   useEffect(() => {
     setTimeout(() => {
       const el = messagesRef.current;
@@ -581,7 +603,7 @@ export default function Conversations() {
             <div className="panel-sub">来自评论触发与直接私信</div>
           </div>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div ref={convListRef} onScroll={onConvListScroll} style={{ flex: 1, overflowY: 'auto' }}>
           {convs.length === 0 && (
             <div className="text-muted" style={{ textAlign: 'center', padding: '48px 0', fontSize: 12 }}>
               暂无对话
