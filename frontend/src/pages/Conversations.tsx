@@ -46,6 +46,31 @@ function persistDraft(id: number | null, draft: Draft) {
 
 const avatarColors = ['avatar-blue', 'avatar-pink', 'avatar-green', 'avatar-amber'];
 
+// Translate Instagram's send-DM failure reason into something a Chinese-speaking
+// operator can act on. The backend forwards Meta's raw error string in
+// `ig_error`; we map the common ones and fall back to showing the raw text.
+function describeIgSendFailure(igError?: string): string {
+  const err = (igError || '').toLowerCase();
+  if (!err) return '消息已保存，但未能发送到 Instagram（原因未知，请查看后端日志）';
+  // Meta error code 10 / subcode 2018278 — outside 24h customer-initiated window
+  if (err.includes('outside') && err.includes('window')) {
+    return '消息已保存，但超过 24 小时回复窗口，Instagram 拒绝发送。需要客户先发新消息才能继续回复。';
+  }
+  if (err.includes('2018278')) {
+    return '消息已保存，但超过 24 小时回复窗口，Instagram 拒绝发送。需要客户先发新消息才能继续回复。';
+  }
+  if (err.includes('access_token') || err.includes('oauth') || err.includes('expired')) {
+    return '消息已保存，但 Instagram 访问令牌失效或过期，请在设置中重新授权。';
+  }
+  if (err.includes('rate') || err.includes('429')) {
+    return '消息已保存，但被 Instagram 限流，请稍后重试。';
+  }
+  if (err.includes('no client registered')) {
+    return '消息已保存，但该会话所属渠道未配置客户端，无法发送。';
+  }
+  return `消息已保存，但未能发送到 Instagram：${igError}`;
+}
+
 // New-message notifications now live in `useNewMessageNotifications`, mounted
 // at the Layout level so they fire across all routes (not just while the
 // operator is on /conversations). Don't reintroduce dispatch logic here.
@@ -305,9 +330,35 @@ export default function Conversations() {
   const sendMutation = useMutation({
     mutationFn: (vars: { convId: number; text: string; isAi?: boolean; skipTranslation?: boolean }) =>
       sendMessage(vars.convId, vars.text, vars.isAi ?? false, vars.skipTranslation ?? false),
+    onMutate: async (vars) => {
+      // Optimistically bump the conversation to the top of the list so the
+      // operator doesn't have to wait 1–2s for the API + refetch. We don't
+      // touch scrollTop of the list container — React's stable `key={c.id}`
+      // keeps DOM nodes in place across reordering, so the scrollbar stays
+      // where the operator left it.
+      await queryClient.cancelQueries({ queryKey: ['conversations'] });
+      const nowIso = new Date().toISOString();
+      queryClient.setQueriesData<Conversation[]>({ queryKey: ['conversations'] }, (old) => {
+        if (!old) return old;
+        const idx = old.findIndex((c) => c.id === vars.convId);
+        if (idx < 0) return old;
+        const target = old[idx];
+        const bumped: Conversation = {
+          ...target,
+          updated_at: nowIso,
+          last_message: vars.text,
+          last_message_role: 'assistant',
+          last_message_is_ai: !!vars.isAi,
+        };
+        const next = old.slice();
+        next.splice(idx, 1);
+        next.unshift(bumped);
+        return next;
+      });
+    },
     onSuccess: (res, vars) => {
       if (!res.ig_sent) {
-        showToast('消息已保存，但未能发送到 Instagram（可能是测试用户）', 'warn');
+        showToast(describeIgSendFailure(res.ig_error), 'warn');
       }
       queryClient.invalidateQueries({ queryKey: ['conversation', vars.convId] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
