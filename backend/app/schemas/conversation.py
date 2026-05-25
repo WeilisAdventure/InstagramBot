@@ -44,6 +44,9 @@ class ConversationResponse(BaseModel):
     # notification UI render "[图片]" for image-only DMs where `last_message`
     # text is empty.
     last_message_has_attachments: bool | None = None
+    # Highest Message.id the manager has marked read. Frontend shows the
+    # unread dot only while last_message_id > last_read_message_id.
+    last_read_message_id: int | None = None
 
     model_config = {"from_attributes": True}
 

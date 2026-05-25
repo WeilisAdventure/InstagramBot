@@ -20,6 +20,11 @@ class Conversation(Base):
     mode: Mapped[str] = mapped_column(String(20), default="ai")  # "ai" | "human"
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
     ai_prompt_notes: Mapped[str | None] = mapped_column(Text, nullable=True)  # accumulated per-conversation prompt notes
+    # Highest Message.id the manager has acknowledged. The "unread dot" shows
+    # when the latest message is from the customer AND its id exceeds this —
+    # so manually marking read clears the dot without requiring a reply, and
+    # any new incoming message re-arms it.
+    last_read_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

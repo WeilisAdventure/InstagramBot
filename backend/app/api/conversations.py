@@ -109,6 +109,7 @@ async def list_conversations(
         # bool() guards against attachments being [] vs None — either way
         # we want False unless there's at least one real attachment.
         data.last_message_has_attachments = bool(last_msg and last_msg.attachments) if last_msg else None
+        data.last_read_message_id = conv.last_read_message_id
         response.append(data)
     return response
 
@@ -154,6 +155,29 @@ async def update_mode(conv_id: int, data: UpdateModeRequest, db: AsyncSession = 
     conv.updated_at = original_updated_at
     await db.commit()
     return {"ok": True, "mode": conv.mode}
+
+
+@router.post("/{conv_id}/mark-read")
+async def mark_read(conv_id: int, db: AsyncSession = Depends(get_db)):
+    """Acknowledge all current messages so the unread dot clears without a reply."""
+    conv = await db.get(Conversation, conv_id)
+    if not conv:
+        raise HTTPException(404, "Conversation not found")
+    latest = await db.execute(
+        select(Message.id)
+        .where(Message.conversation_id == conv_id)
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    )
+    latest_id = latest.scalar_one_or_none()
+    if latest_id is not None:
+        original_updated_at = conv.updated_at
+        conv.last_read_message_id = latest_id
+        await db.flush()
+        # Don't reorder the conversation list just because the dot was cleared.
+        conv.updated_at = original_updated_at
+        await db.commit()
+    return {"ok": True, "last_read_message_id": conv.last_read_message_id}
 
 
 @router.post("/{conv_id}/send")

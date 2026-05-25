@@ -11,8 +11,9 @@ import {
   translateMessage,
   generateAIReply,
   clearPromptNotes,
+  markConversationRead,
 } from '../api/client';
-import type { ConversationDetail, AssistResult } from '../types';
+import type { Conversation, ConversationDetail, AssistResult } from '../types';
 import { useUncontrolledText } from '../hooks/useUncontrolledText';
 
 const SELECTED_CONV_KEY = 'instabot.selectedConv';
@@ -385,6 +386,27 @@ export default function Conversations() {
     },
   });
 
+  const markReadMutation = useMutation({
+    mutationFn: (convId: number) => markConversationRead(convId),
+    onMutate: async (convId) => {
+      await queryClient.cancelQueries({ queryKey: ['conversations'] });
+      // Optimistic: bump last_read_message_id to current last_message_id so
+      // the dot disappears instantly, without waiting for a refetch.
+      queryClient.setQueriesData<Conversation[]>({ queryKey: ['conversations'] }, (old) => {
+        if (!old) return old;
+        return old.map((c) =>
+          c.id === convId && c.last_message_id != null
+            ? { ...c, last_read_message_id: c.last_message_id }
+            : c,
+        );
+      });
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      showToast('标记已读失败', 'error');
+    },
+  });
+
   const clearNotesMutation = useMutation({
     mutationFn: (convId: number) => clearPromptNotes(convId),
     onSuccess: (_res, convId) => {
@@ -552,7 +574,28 @@ export default function Conversations() {
               <div className="list-item-meta">
                 <span className="text-xs">{timeAgo(c.updated_at)}</span>
                 <div className="flex items-center gap-6">
-                  {c.last_message_role === 'user' && <span className="unread-dot" />}
+                  {c.last_message_role === 'user'
+                    && c.last_message_id != null
+                    && (c.last_read_message_id ?? 0) < c.last_message_id && (
+                    <span
+                      role="button"
+                      title="标记为已读"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markReadMutation.mutate(c.id);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 6,
+                        margin: -6,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span className="unread-dot" />
+                    </span>
+                  )}
                   {c.last_message_role === 'assistant' && (
                     c.last_message_is_ai ? (
                       <span className="tag-pill tag-ai">AI</span>

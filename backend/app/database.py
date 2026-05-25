@@ -27,6 +27,7 @@ async def init_db():
         migrations = [
             ("comment_events", "permalink", "TEXT"),
             ("conversations", "ai_prompt_notes", "TEXT"),
+            ("conversations", "last_read_message_id", "INTEGER"),
             ("messages", "attachments", "JSON"),
         ]
         for table, column, ddl in migrations:

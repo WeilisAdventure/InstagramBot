@@ -82,6 +82,8 @@ export const generateAIReply = (convId: number, prompt?: string) =>
   request<{ reply: string; prompt_notes: string }>(`/conversations/${convId}/generate-reply`, { method: 'POST', body: JSON.stringify({ prompt: prompt || '' }) });
 export const clearPromptNotes = (convId: number) =>
   request<{ ok: boolean }>(`/conversations/${convId}/prompt-notes`, { method: 'DELETE' });
+export const markConversationRead = (convId: number) =>
+  request<{ ok: boolean; last_read_message_id: number | null }>(`/conversations/${convId}/mark-read`, { method: 'POST' });
 
 // Knowledge base
 export interface KnowledgeSection { section: string; builtin: boolean; protected: boolean }
