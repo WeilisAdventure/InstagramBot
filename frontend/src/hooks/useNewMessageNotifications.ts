@@ -94,22 +94,15 @@ export function useNewMessageNotifications() {
     notifyOnChangeProps: ['data'],
   });
 
-  // Dry-run for multi-channel support: a second useQuery is structurally
-  // present (so the component definitely tolerates two of them mounted
-  // side-by-side) but `enabled: false` keeps it from firing any network
-  // calls or producing any data. When Tidio actually ships, this flips on
-  // by replacing `enabled: false` with `enabled: !!settings?.tidio_enabled`
-  // and the diff effect below starts iterating `tidioConvs` too.
-  //
-  // Why dry-run first: the existing IG-only hook is wired up against IME
-  // composition (notifyOnChangeProps: ['data'] is load-bearing). Proving
-  // the two-query shape doesn't regress IME *before* layering channel
-  // logic on top means any future bug has only one place to be.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { data: _tidioConvs = [], dataUpdatedAt: _tidioAt } = useQuery({
+  // Tidio inbox poll — only fires when the env-driven `tidio_enabled` flag
+  // says so. The structural shape (second useQuery alongside the IG one)
+  // was proven safe for Chinese IME in the dry-run PR; here we just flip
+  // `enabled` to a real condition. notifyOnChangeProps stays — re-renders
+  // every 2s would still break IME otherwise.
+  const { data: tidioConvs = [], dataUpdatedAt: tidioAt } = useQuery({
     queryKey: ['conversations', 'tidio'],
     queryFn: () => getConversations('tidio'),
-    enabled: false,
+    enabled: !!settings?.tidio_enabled,
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
     notifyOnChangeProps: ['data'],
@@ -165,9 +158,18 @@ export function useNewMessageNotifications() {
     // and then floods notifications when real data arrives (every conv
     // looks "new" because prevId is undefined for all of them).
     if (dataUpdatedAt === 0) return;
+    // When Tidio is enabled, also wait for its first non-empty response so
+    // its conversations get folded into the baseline. tidioAt stays 0
+    // when the Tidio query is disabled, so this guard is a no-op there.
+    if (settings?.tidio_enabled && tidioAt === 0) return;
+
+    // Merge both channels into a single iteration. Conversation.id is the
+    // primary key (globally unique across channels), so lastSeenIdRef
+    // stays a flat Map without needing a channel-scoped key.
+    const allConvs = settings?.tidio_enabled ? [...convs, ...tidioConvs] : convs;
 
     if (!hasBaselineRef.current) {
-      for (const c of convs) {
+      for (const c of allConvs) {
         if (c.last_message_id != null) lastSeenIdRef.current.set(c.id, c.last_message_id);
       }
       hasBaselineRef.current = true;
@@ -177,14 +179,14 @@ export function useNewMessageNotifications() {
     // Master switch off: still keep the baseline in sync so re-enabling
     // doesn't dump a backlog of stale "new" notifications.
     if (!settings?.notification_enabled) {
-      for (const c of convs) {
+      for (const c of allConvs) {
         if (c.last_message_id != null) lastSeenIdRef.current.set(c.id, c.last_message_id);
       }
       return;
     }
 
     let newCount = 0;
-    for (const c of convs) {
+    for (const c of allConvs) {
       const currentId = c.last_message_id;
       if (currentId == null) continue;
       const prevId = lastSeenIdRef.current.get(c.id);
@@ -203,8 +205,12 @@ export function useNewMessageNotifications() {
             (c.last_message && c.last_message.trim())
               ? c.last_message
               : (c.last_message_has_attachments ? '[图片]' : '');
+          // Channel tag in the title so the operator knows which inbox
+          // to look at (IG vs Tidio). Keep it short — desktop notification
+          // titles get truncated past ~50 chars.
+          const tag = c.channel === 'tidio' ? '[Tidio]' : '[IG]';
           showDesktopNotification(
-            `${prevId === undefined ? '新对话' : '新消息'} - ${c.external_username || c.external_user_id}`,
+            `${tag} ${prevId === undefined ? '新对话' : '新消息'} - ${c.external_username || c.external_user_id}`,
             body,
           );
         }
@@ -217,5 +223,8 @@ export function useNewMessageNotifications() {
     if (newCount > 0 && settings.notification_title_flash) {
       setUnreadCount((prev) => prev + newCount);
     }
-  }, [convs, settings, dataUpdatedAt]);
+    // tidioConvs / tidioAt are in the deps so a Tidio-only update re-runs
+    // the diff (otherwise React only sees convs/dataUpdatedAt unchanged
+    // and skips it). settings is in there for the tidio_enabled flip.
+  }, [convs, tidioConvs, settings, dataUpdatedAt, tidioAt]);
 }

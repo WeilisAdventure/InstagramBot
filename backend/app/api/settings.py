@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models.settings import SystemSettings
 from app.schemas.settings import SettingsResponse, SettingsUpdate
 from app.security import verify_token
+from app.config import settings as app_settings
 
 router = APIRouter(prefix="/api/settings", tags=["settings"], dependencies=[Depends(verify_token)])
 
@@ -87,6 +88,9 @@ async def get_settings(request: Request = None, db: AsyncSession = Depends(get_d
         welcome_message_text=await _get_setting(db, "welcome_message_text"),
         default_conversation_mode=await _get_setting(db, "default_conversation_mode"),
         public_base_url=await _get_setting(db, "public_base_url"),
+        # Read-only env-sourced flag. Frontend uses it to decide whether to
+        # show the Tidio sidebar group + /tidio/conversations route.
+        tidio_enabled=app_settings.tidio_enabled,
     )
 
 
