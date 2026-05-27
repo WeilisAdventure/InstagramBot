@@ -14,7 +14,7 @@ class FailingAIProvider(AIProvider):
         raise Exception("API key invalid")
 
     async def translate_and_improve(self, text):
-        return {"original": text, "improved": text, "language": "en"}
+        return {"original": text, "improved": text}
 
     async def translate_message(self, text):
         return {"original": text, "translated": text, "source_lang": "en"}
@@ -29,7 +29,7 @@ class CannotAnswerAIProvider(AIProvider):
         return "__CANNOT_ANSWER__"
 
     async def translate_and_improve(self, text):
-        return {"original": text, "improved": text, "language": "en"}
+        return {"original": text, "improved": text}
 
     async def translate_message(self, text):
         return {"original": text, "translated": text, "source_lang": "en"}
@@ -44,7 +44,7 @@ class NormalAIProvider(AIProvider):
         return "Hello! How can I help you today?"
 
     async def translate_and_improve(self, text):
-        return {"original": text, "improved": text, "language": "en"}
+        return {"original": text, "improved": text}
 
     async def translate_message(self, text):
         return {"original": text, "translated": text, "source_lang": "en"}

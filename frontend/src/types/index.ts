@@ -131,5 +131,4 @@ export interface CommentEventList {
 export interface AssistResult {
   original: string;
   improved: string;
-  language: string;
 }

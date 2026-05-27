@@ -1,5 +1,7 @@
+import logging
+
 import anthropic
-from app.ai.base import AIProvider, _parse_assist_json
+from app.ai.base import ASSIST_PROMPT, AIProvider, _clean_assist_output
 from app.ai.prompt import build_system_prompt
 
 
@@ -71,25 +73,12 @@ class ClaudeProvider(AIProvider):
             return {"original": text, "translated": text, "source_lang": source_lang}
 
     async def translate_and_improve(self, text: str) -> dict:
-        prompt = (
-            "Analyze the following text. If it's in Chinese, translate it to natural English "
-            "suitable for an Instagram DM reply from a delivery company. If it's in English, "
-            "polish and improve it for clarity and professionalism.\n\n"
-            "PRESERVE THE ORIGINAL STRUCTURE: keep the same paragraph breaks, line breaks, "
-            "bullet points, and ordering as the input. Do NOT merge multiple paragraphs into "
-            "a single block. Inside the JSON value use \\n for newlines.\n\n"
-            "Respond with ONE valid JSON object and NOTHING else — no markdown, no code "
-            "fences, no commentary before or after.\n\n"
-            'Schema: {"original": "<input>", "improved": "<output>", "language": "zh" | "en"}\n\n'
-            f"Text: {text}"
-        )
         try:
             response = await self.client.messages.create(
                 model=self.model,
                 max_tokens=2048,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": ASSIST_PROMPT + text}],
             )
-            import logging
             _l = logging.getLogger(__name__)
             _l.info(
                 "translate_and_improve stop_reason=%s usage=%s",
@@ -98,8 +87,7 @@ class ClaudeProvider(AIProvider):
             )
             if getattr(response, "stop_reason", None) == "max_tokens":
                 _l.warning("translate_and_improve hit max_tokens — output truncated")
-            return _parse_assist_json(response.content[0].text, text)
+            return _clean_assist_output(response.content[0].text, text)
         except Exception as e:
-            import logging
             logging.getLogger(__name__).warning(f"translate_and_improve failed: {e}")
-            return {"original": text, "improved": text, "language": "en"}
+            return {"original": text, "improved": text}

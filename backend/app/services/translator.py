@@ -7,7 +7,7 @@ class TranslatorService:
 
     async def assist_input(self, text: str) -> dict:
         """Translate/polish user input for DM reply.
-        Returns {"original": str, "improved": str, "language": "zh"|"en"}
+        Returns {"original": str, "improved": str}
         """
         return await self.ai.translate_and_improve(text)
 

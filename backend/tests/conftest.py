@@ -13,7 +13,7 @@ class MockAIProvider(AIProvider):
         return f"Mock reply to: {user_message}"
 
     async def translate_and_improve(self, text):
-        return {"original": text, "improved": f"Improved: {text}", "language": "en"}
+        return {"original": text, "improved": f"Improved: {text}"}
 
     async def translate_message(self, text):
         return {"original": text, "translated": f"Translated: {text}", "source_lang": "en"}

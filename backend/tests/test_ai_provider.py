@@ -16,4 +16,3 @@ async def test_mock_translate():
     result = await provider.translate_and_improve("Hello world")
     assert result["original"] == "Hello world"
     assert result["improved"] == "Improved: Hello world"
-    assert result["language"] == "en"

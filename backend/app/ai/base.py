@@ -1,4 +1,3 @@
-import json
 import logging
 import re
 from abc import ABC, abstractmethod
@@ -6,66 +5,40 @@ from abc import ABC, abstractmethod
 _log = logging.getLogger(__name__)
 
 
-def _parse_assist_json(raw: str, original_text: str) -> dict:
-    """Parse the JSON the LLM returns for translate_and_improve.
+ASSIST_PROMPT = (
+    "You will receive a message that a delivery-company operator wants to "
+    "send as an Instagram DM. If it is Chinese, translate it into natural, "
+    "professional English. If it is already English, polish it for clarity "
+    "and professionalism.\n\n"
+    "PRESERVE THE ORIGINAL STRUCTURE: keep the same paragraph breaks, line "
+    "breaks, bullet points, and ordering as the input. Do NOT merge multiple "
+    "paragraphs into a single block.\n\n"
+    "Respond with ONLY the rewritten message text — no quotes around it, no "
+    "JSON, no markdown code fences, no commentary, no labels like "
+    "'Translation:' or 'Here is...'.\n\n"
+    "Message:\n"
+)
 
-    Models routinely wrap JSON in ```json fences``` or add explanatory
-    prose before/after. We strip both and salvage the first {...} block.
-    Falls back to the original text + heuristic language detection so
-    the caller always gets a usable dict.
-    """
+
+def _clean_assist_output(raw: str, original_text: str) -> dict:
+    """Normalize the model's plain-text rewrite into the API response shape.
+    Strips accidental code fences and a single layer of wrapping quotes; on
+    empty output falls back to the original so the caller always gets a
+    usable string."""
     text = (raw or "").strip()
     if text.startswith("```"):
-        # ```json\n{...}\n```  or  ```\n{...}\n```
         text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
         text = re.sub(r"\n?```\s*$", "", text).strip()
-    # Some models prepend "Here is the JSON: { ... }". Grab the first
-    # balanced object.
-    if not text.startswith("{"):
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            text = m.group(0)
-    try:
-        data = json.loads(text)
-    except Exception as e:
+    if len(text) >= 2 and text[0] in '"“' and text[-1] in '"”':
+        text = text[1:-1].strip()
+    if not text:
+        _log.warning("assist returned empty output; raw[:400]=%r", (raw or "")[:400])
+        text = original_text
+    elif text.strip() == (original_text or "").strip():
         _log.warning(
-            "assist JSON parse failed (%s); raw[:800]=%r", e, (raw or "")[:800]
+            "assist output equals original input; raw[:400]=%r", (raw or "")[:400]
         )
-        return _fallback_assist(original_text)
-    if not isinstance(data, dict):
-        _log.warning("assist JSON not an object; raw[:800]=%r", (raw or "")[:800])
-        return _fallback_assist(original_text)
-    improved = data.get("improved")
-    if not improved:
-        _log.warning(
-            "assist JSON missing 'improved'; keys=%s raw[:800]=%r",
-            list(data.keys()),
-            (raw or "")[:800],
-        )
-        improved = original_text
-    elif improved.strip() == (original_text or "").strip():
-        _log.warning(
-            "assist 'improved' equals original; language=%s raw[:800]=%r",
-            data.get("language"),
-            (raw or "")[:800],
-        )
-    language = data.get("language") or _guess_lang(original_text)
-    return {
-        "original": data.get("original") or original_text,
-        "improved": improved,
-        "language": language,
-    }
-
-
-def _fallback_assist(text: str) -> dict:
-    return {"original": text, "improved": text, "language": _guess_lang(text)}
-
-
-_CJK_RE = re.compile(r"[一-鿿㐀-䶿]")
-
-
-def _guess_lang(text: str) -> str:
-    return "zh" if _CJK_RE.search(text or "") else "en"
+    return {"original": original_text, "improved": text}
 
 
 class AIProvider(ABC):
@@ -96,8 +69,8 @@ class AIProvider(ABC):
 
     @abstractmethod
     async def translate_and_improve(self, text: str) -> dict:
-        """Detect language, translate if Chinese, or polish if English.
-        Returns {"original": str, "improved": str, "language": "zh"|"en"}
+        """Translate Chinese -> English, or polish English in place.
+        Returns {"original": str, "improved": str}.
         """
         ...
 
