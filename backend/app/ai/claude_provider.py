@@ -1,7 +1,13 @@
 import logging
 
 import anthropic
-from app.ai.base import ASSIST_PROMPT, AIProvider, _clean_assist_output
+from app.ai.base import (
+    ASSIST_PROMPT,
+    AIProvider,
+    _clean_assist_output,
+    _clean_translate_output,
+    build_translate_prompt,
+)
 from app.ai.prompt import build_system_prompt
 
 
@@ -46,30 +52,17 @@ class ClaudeProvider(AIProvider):
         return response.content[0].text
 
     async def translate_message(self, text: str) -> dict:
-        import re
-        # Simple heuristic: if text contains CJK characters, treat as Chinese
-        has_cjk = bool(re.search(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
-        source_lang = "zh" if has_cjk else "en"
-
-        if source_lang == "en":
-            direction = "Translate the following English text to Chinese."
-        else:
-            direction = "Translate the following Chinese text to English."
-
-        prompt = (
-            f"{direction}\n\n"
-            "Respond with ONLY the translated text, no explanations.\n\n"
-            f"Text: {text}"
-        )
+        prompt, source_lang = build_translate_prompt(text)
         try:
             response = await self.client.messages.create(
                 model=self.model,
-                max_tokens=1500,
+                max_tokens=2048,
                 messages=[{"role": "user", "content": prompt}],
             )
-            translated = response.content[0].text.strip()
+            translated = _clean_translate_output(response.content[0].text, text)
             return {"original": text, "translated": translated, "source_lang": source_lang}
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"translate_message failed: {e}")
             return {"original": text, "translated": text, "source_lang": source_lang}
 
     async def translate_and_improve(self, text: str) -> dict:

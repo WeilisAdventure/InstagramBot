@@ -1,7 +1,13 @@
 import logging
 
 import openai
-from app.ai.base import ASSIST_PROMPT, AIProvider, _clean_assist_output
+from app.ai.base import (
+    ASSIST_PROMPT,
+    AIProvider,
+    _clean_assist_output,
+    _clean_translate_output,
+    build_translate_prompt,
+)
 from app.ai.prompt import build_system_prompt
 
 
@@ -43,24 +49,17 @@ class OpenAIProvider(AIProvider):
         return response.choices[0].message.content or ""
 
     async def translate_message(self, text: str) -> dict:
-        import re
-        has_cjk = bool(re.search(r'[\u4e00-\u9fff\u3400-\u4dbf]', text))
-        source_lang = "zh" if has_cjk else "en"
-        direction = (
-            "Translate the following Chinese text to English."
-            if source_lang == "zh"
-            else "Translate the following English text to Chinese."
-        )
-        prompt = f"{direction}\n\nRespond with ONLY the translated text, no explanations.\n\nText: {text}"
+        prompt, source_lang = build_translate_prompt(text)
         try:
             response = await self.client.chat.completions.create(
                 model=self.model,
-                max_completion_tokens=1500,
+                max_completion_tokens=2048,
                 messages=[{"role": "user", "content": prompt}],
             )
-            translated = (response.choices[0].message.content or "").strip()
+            translated = _clean_translate_output(response.choices[0].message.content or "", text)
             return {"original": text, "translated": translated, "source_lang": source_lang}
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"translate_message failed: {e}")
             return {"original": text, "translated": text, "source_lang": source_lang}
 
     async def translate_and_improve(self, text: str) -> dict:

@@ -27,6 +27,54 @@ ASSIST_PROMPT = (
 )
 
 
+_CJK_RE = re.compile(r"[一-鿿㐀-䶿]")
+
+
+def build_translate_prompt(text: str) -> tuple[str, str]:
+    """Build a translation prompt for outgoing DMs. Returns (prompt, source_lang).
+
+    Same formatting rules as ASSIST_PROMPT — when the input is one long
+    run-on paragraph, the model is allowed to split the output along
+    natural semantic boundaries so the customer doesn't get a wall of text.
+    """
+    source_lang = "zh" if _CJK_RE.search(text or "") else "en"
+    direction = (
+        "Translate the following Chinese text into natural, professional English."
+        if source_lang == "zh"
+        else "Translate the following English text into natural Chinese."
+    )
+    prompt = (
+        f"{direction}\n\n"
+        "FORMATTING RULES:\n"
+        "- If the input already has paragraph or line breaks, preserve them and "
+        "do NOT merge them into one block.\n"
+        "- If the input is one long run-on paragraph, break the output into "
+        "short, readable paragraphs along natural semantic boundaries. "
+        "Separate paragraphs with a blank line.\n"
+        "- Keep bullet points / numbered lists when they help readability.\n"
+        "- Do not invent content; only translate and restructure.\n\n"
+        "Respond with ONLY the translated text — no quotes around it, no "
+        "commentary, no labels like 'Translation:' or 'Here is...'.\n\n"
+        f"Text:\n{text}"
+    )
+    return prompt, source_lang
+
+
+def _clean_translate_output(raw: str, original_text: str) -> str:
+    """Strip accidental code fences / wrapping quotes from a translate_message
+    response. Falls back to the original on empty output."""
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
+        text = re.sub(r"\n?```\s*$", "", text).strip()
+    if len(text) >= 2 and text[0] in '"“' and text[-1] in '"”':
+        text = text[1:-1].strip()
+    if not text:
+        _log.warning("translate returned empty output; raw[:400]=%r", (raw or "")[:400])
+        return original_text
+    return text
+
+
 def _clean_assist_output(raw: str, original_text: str) -> dict:
     """Normalize the model's plain-text rewrite into the API response shape.
     Strips accidental code fences and a single layer of wrapping quotes; on
