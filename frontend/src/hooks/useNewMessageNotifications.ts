@@ -94,6 +94,27 @@ export function useNewMessageNotifications() {
     notifyOnChangeProps: ['data'],
   });
 
+  // Dry-run for multi-channel support: a second useQuery is structurally
+  // present (so the component definitely tolerates two of them mounted
+  // side-by-side) but `enabled: false` keeps it from firing any network
+  // calls or producing any data. When Tidio actually ships, this flips on
+  // by replacing `enabled: false` with `enabled: !!settings?.tidio_enabled`
+  // and the diff effect below starts iterating `tidioConvs` too.
+  //
+  // Why dry-run first: the existing IG-only hook is wired up against IME
+  // composition (notifyOnChangeProps: ['data'] is load-bearing). Proving
+  // the two-query shape doesn't regress IME *before* layering channel
+  // logic on top means any future bug has only one place to be.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { data: _tidioConvs = [], dataUpdatedAt: _tidioAt } = useQuery({
+    queryKey: ['conversations', 'tidio'],
+    queryFn: () => getConversations('tidio'),
+    enabled: false,
+    refetchInterval: 2000,
+    refetchIntervalInBackground: true,
+    notifyOnChangeProps: ['data'],
+  });
+
   // Map: conversation id -> last seen message id. Baseline is established on
   // the first non-empty fetch, so the initial load never fires notifications.
   const lastSeenIdRef = useRef<Map<number, number>>(new Map());
