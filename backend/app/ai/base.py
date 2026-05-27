@@ -1,6 +1,9 @@
 import json
+import logging
 import re
 from abc import ABC, abstractmethod
+
+_log = logging.getLogger(__name__)
 
 
 def _parse_assist_json(raw: str, original_text: str) -> dict:
@@ -24,11 +27,28 @@ def _parse_assist_json(raw: str, original_text: str) -> dict:
             text = m.group(0)
     try:
         data = json.loads(text)
-    except Exception:
+    except Exception as e:
+        _log.warning(
+            "assist JSON parse failed (%s); raw[:800]=%r", e, (raw or "")[:800]
+        )
         return _fallback_assist(original_text)
     if not isinstance(data, dict):
+        _log.warning("assist JSON not an object; raw[:800]=%r", (raw or "")[:800])
         return _fallback_assist(original_text)
-    improved = data.get("improved") or original_text
+    improved = data.get("improved")
+    if not improved:
+        _log.warning(
+            "assist JSON missing 'improved'; keys=%s raw[:800]=%r",
+            list(data.keys()),
+            (raw or "")[:800],
+        )
+        improved = original_text
+    elif improved.strip() == (original_text or "").strip():
+        _log.warning(
+            "assist 'improved' equals original; language=%s raw[:800]=%r",
+            data.get("language"),
+            (raw or "")[:800],
+        )
     language = data.get("language") or _guess_lang(original_text)
     return {
         "original": data.get("original") or original_text,

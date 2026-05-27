@@ -86,9 +86,18 @@ class ClaudeProvider(AIProvider):
         try:
             response = await self.client.messages.create(
                 model=self.model,
-                max_tokens=1500,
+                max_tokens=2048,
                 messages=[{"role": "user", "content": prompt}],
             )
+            import logging
+            _l = logging.getLogger(__name__)
+            _l.info(
+                "translate_and_improve stop_reason=%s usage=%s",
+                getattr(response, "stop_reason", None),
+                getattr(response, "usage", None),
+            )
+            if getattr(response, "stop_reason", None) == "max_tokens":
+                _l.warning("translate_and_improve hit max_tokens — output truncated")
             return _parse_assist_json(response.content[0].text, text)
         except Exception as e:
             import logging
