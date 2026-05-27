@@ -16,7 +16,12 @@ import {
 import type { Conversation, ConversationDetail, AssistResult } from '../types';
 import { useUncontrolledText } from '../hooks/useUncontrolledText';
 
-const SELECTED_CONV_KEY = 'instabot.selectedConv';
+// Per-channel selection key. Without channel-scoping, switching from
+// /conversations (IG) to /tidio/conversations (Tidio) would leave the
+// right-side detail pane stuck on the previously selected IG conversation
+// — the conversation list is channel-filtered but `/api/conversations/{id}`
+// looks up by primary key alone, so any id resolves regardless of channel.
+const selectedConvKey = (channel: string) => `instabot.selectedConv.${channel}`;
 
 // Per-conversation draft state (textarea contents) survives tab switches,
 // page reloads, and even mid-generation unmounts — the generateReply
@@ -190,18 +195,31 @@ export default function Conversations() {
   const params = useParams<{ channel?: string }>();
   const channel = params.channel === 'tidio' ? 'tidio' : 'instagram';
 
-  // Persist selectedId in sessionStorage so switching tabs (which unmounts
-  // this component) doesn't lose the user's place. ?conv=ID overrides on mount.
+  // Per-channel selection. Each channel remembers its own last-selected
+  // conversation in sessionStorage; switching channels swaps in that
+  // channel's saved selection (or null on first visit). ?conv=ID still
+  // overrides on mount regardless of channel.
   const [selectedId, setSelectedIdState] = useState<number | null>(() => {
-    const saved = sessionStorage.getItem(SELECTED_CONV_KEY);
+    const saved = sessionStorage.getItem(selectedConvKey(channel));
     const n = saved ? parseInt(saved, 10) : NaN;
     return Number.isFinite(n) ? n : null;
   });
   const setSelectedId = (id: number | null) => {
     setSelectedIdState(id);
-    if (id) sessionStorage.setItem(SELECTED_CONV_KEY, String(id));
-    else sessionStorage.removeItem(SELECTED_CONV_KEY);
+    if (id) sessionStorage.setItem(selectedConvKey(channel), String(id));
+    else sessionStorage.removeItem(selectedConvKey(channel));
   };
+
+  // When the channel changes (user navigates between /conversations and
+  // /tidio/conversations), re-read this channel's saved selection. Without
+  // this, useState's lazy initializer only fires once on mount and the
+  // right pane would keep showing the previously-selected conversation
+  // from the other channel.
+  useEffect(() => {
+    const saved = sessionStorage.getItem(selectedConvKey(channel));
+    const n = saved ? parseInt(saved, 10) : NaN;
+    setSelectedIdState(Number.isFinite(n) ? n : null);
+  }, [channel]);
 
   const aiPanelSize = useResizable(360, 'instabot.height.aiPanel');
   const humanPanelSize = useResizable(260, 'instabot.height.humanPanel');
