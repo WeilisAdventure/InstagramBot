@@ -65,8 +65,11 @@ class GraphApiClient(InstagramClient):
     async def stop_polling(self):
         await self.http.aclose()
 
-    async def send_dm(self, user_id: str, text: str, tag: str | None = None) -> bool:
+    async def send_dm(self, user_id: str, text: str, *, tag: str | None = None, thread_id: str | None = None) -> bool:
         """Send a DM via Instagram Messaging API.
+
+        `thread_id` is a no-op here (IG addresses DMs by recipient id);
+        accepted only for ChannelClient signature compatibility.
 
         Endpoint: POST /me/messages
         Docs: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/messaging-api
@@ -74,6 +77,7 @@ class GraphApiClient(InstagramClient):
         tag: optional messaging tag e.g. "HUMAN_AGENT" to extend the reply
              window beyond 24 hours (requires Meta app review approval).
         """
+        del thread_id  # IG ignores; declared for ChannelClient parity
         chunks = [text[i:i + 1000] for i in range(0, len(text), 1000)]
         for chunk in chunks:
             try:

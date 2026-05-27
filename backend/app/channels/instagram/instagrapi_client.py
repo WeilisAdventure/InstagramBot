@@ -169,7 +169,10 @@ class InstagrapiClient(InstagramClient):
         except Exception as e:
             logger.error(f"Comment check error: {e}")
 
-    async def send_dm(self, user_id: str, text: str) -> bool:
+    async def send_dm(self, user_id: str, text: str, *, thread_id: str | None = None) -> bool:
+        # IG addresses DMs by user_id — `thread_id` is a no-op here, kept
+        # only for ChannelClient signature compatibility.
+        del thread_id
         try:
             # Split long messages (Instagram DM limit ~1000 chars)
             chunks = [text[i:i+1000] for i in range(0, len(text), 1000)]

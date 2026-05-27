@@ -15,6 +15,10 @@ class Conversation(Base):
     external_user_id: Mapped[str] = mapped_column(String(100), index=True)
     external_username: Mapped[str] = mapped_column(String(100), default="")
     external_profile_pic: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Channel-specific thread/ticket id. Null for IG (DMs are 1:1 with the
+    # user, no separate thread concept). For Tidio this holds the latest
+    # ticket id so we know where to POST the reply.
+    external_thread_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     trigger_source: Mapped[str] = mapped_column(String(50), default="direct_dm")  # "comment_rule" | "direct_dm" | "simulation"
     trigger_rule_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("comment_trigger_rules.id"), nullable=True)
     mode: Mapped[str] = mapped_column(String(20), default="ai")  # "ai" | "human"

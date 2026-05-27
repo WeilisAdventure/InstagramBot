@@ -186,6 +186,12 @@ class MessageHandler:
                 conv.external_username = username
             if profile_pic:
                 conv.external_profile_pic = profile_pic
+            # Tidio routes replies by ticket id, not by contact. Keep the
+            # row's `external_thread_id` synced to the latest ticket the
+            # customer wrote in — when they open a new ticket later, this
+            # advances and our next reply lands in the right place.
+            if msg.thread_id and conv.external_thread_id != msg.thread_id:
+                conv.external_thread_id = msg.thread_id
             user_msg = Message(
                 conversation_id=conv.id,
                 role="user",
@@ -197,6 +203,7 @@ class MessageHandler:
             await db.commit()
             conv_id = conv.id
             conv_mode = conv.mode
+            conv_thread_id = conv.external_thread_id
 
         # Phase 1.5: Send welcome message to new users
         if is_new:
@@ -204,7 +211,7 @@ class MessageHandler:
             if welcome_enabled:
                 welcome_text = await self._get_setting_value("welcome_message_text", "")
                 if welcome_text.strip():
-                    success = await client.send_dm(msg.sender_id, welcome_text)
+                    success = await client.send_dm(msg.sender_id, welcome_text, thread_id=conv_thread_id)
                     async with async_session() as db:
                         db.add(Message(
                             conversation_id=conv_id,
@@ -337,7 +344,7 @@ class MessageHandler:
             await asyncio.sleep(delay)
 
         # Send reply
-        success = await client.send_dm(msg.sender_id, reply_text)
+        success = await client.send_dm(msg.sender_id, reply_text, thread_id=conv_thread_id)
 
         # Phase 3: Save assistant message
         async with async_session() as db:
