@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getConversations,
@@ -182,6 +182,13 @@ const innerSplitterStyle: React.CSSProperties = {
 export default function Conversations() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  // Channel from URL: /:channel/conversations sets it; legacy /conversations
+  // omits the segment and defaults to 'instagram' so existing bookmarks /
+  // links stay valid. Keep the list of supported channels narrow so a
+  // typo'd URL like /foo/conversations falls back to IG instead of
+  // hitting the backend with channel=foo (which 422s on the API).
+  const params = useParams<{ channel?: string }>();
+  const channel = params.channel === 'tidio' ? 'tidio' : 'instagram';
 
   // Persist selectedId in sessionStorage so switching tabs (which unmounts
   // this component) doesn't lose the user's place. ?conv=ID overrides on mount.
@@ -228,10 +235,12 @@ export default function Conversations() {
   });
 
   // Wrap in an arrow so React Query doesn't pass its QueryFunctionContext
-  // object as the `channel` arg of getConversations.
+  // object as the `channel` arg of getConversations. Cache slot is keyed
+  // by channel so switching between /conversations and /tidio/conversations
+  // doesn't show stale data from the other side.
   const { data: convs = [] } = useQuery({
-    queryKey: ['conversations', 'instagram'],
-    queryFn: () => getConversations('instagram'),
+    queryKey: ['conversations', channel],
+    queryFn: () => getConversations(channel),
     refetchInterval: 2000,
     notifyOnChangeProps: ['data'],
   });

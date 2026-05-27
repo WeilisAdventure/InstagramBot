@@ -24,6 +24,12 @@ class SettingsResponse(BaseModel):
     welcome_message_text: str
     default_conversation_mode: str = "ai"
     public_base_url: str = ""
+    # Read-only mirror of the TIDIO_ENABLED env var. Frontend conditionally
+    # renders the Tidio sidebar group + routes based on this. Toggling
+    # requires editing .env + restarting; we don't expose a mutation
+    # because turning Tidio on/off mid-flight without restarting the
+    # channel client wouldn't work anyway.
+    tidio_enabled: bool = False
 
 
 class SettingsUpdate(BaseModel):

@@ -10,27 +10,50 @@ const dotColorMap: Record<string, string> = {
   '#9ca3af': 'gray',
 };
 
-const sections = [
+// Static nav layout. The Tidio group is appended at render time only when
+// `settings.tidio_enabled` is true so users on IG-only deploys don't see
+// an empty channel section. Adding a third channel later = adding one
+// more conditional group below.
+const baseSections = [
   { group: '概览', items: [
     { path: '/', label: '总览仪表盘', dotColor: '#185FA5' },
   ]},
-  { group: '核心功能', items: [
+  { group: 'Instagram', items: [
     { path: '/conversations', label: '私信对话', dotColor: '#22c55e' },
     { path: '/comments', label: '评论收件箱', dotColor: '#dc2626', badgeKey: 'comments' as const },
     { path: '/rules', label: '评论触发规则', dotColor: '#185FA5' },
   ]},
-  { group: '配置', items: [
-    { path: '/settings', label: '系统设置', dotColor: '#9ca3af' },
-  ]},
 ];
+
+const tidioSection = {
+  group: 'Tidio',
+  items: [
+    // Only DMs for now — Tidio has no comments/rules analog. We use a
+    // distinct dot color so the operator can tell channel groups apart
+    // even when they scroll past the headers.
+    { path: '/tidio/conversations', label: '访客对话', dotColor: '#534AB7' },
+  ],
+};
+
+const configSection = {
+  group: '配置',
+  items: [
+    { path: '/settings', label: '系统设置', dotColor: '#9ca3af' },
+  ],
+};
 
 export default function Sidebar() {
   const [t1, setT1] = useState(true);
   const [t2, setT2] = useState(true);
+  const [tidioEnabled, setTidioEnabled] = useState(false);
   const [commentUnread, setCommentUnread] = useState(0);
 
   useEffect(() => {
-    getSettings().then((s) => { setT1(s.auto_reply_enabled); setT2(s.comment_trigger_enabled); }).catch(() => {});
+    getSettings().then((s) => {
+      setT1(s.auto_reply_enabled);
+      setT2(s.comment_trigger_enabled);
+      setTidioEnabled(!!s.tidio_enabled);
+    }).catch(() => {});
     const refresh = () => {
       getCommentUnreadCount().then((d) => setCommentUnread(d.unread)).catch(() => {});
     };
@@ -38,6 +61,12 @@ export default function Sidebar() {
     const id = setInterval(refresh, 15000);
     return () => clearInterval(id);
   }, []);
+
+  // Build the final section list once per render. Tidio gets spliced in
+  // before "配置" so the order reads: overview → channels → config.
+  const sections = tidioEnabled
+    ? [...baseSections, tidioSection, configSection]
+    : [...baseSections, configSection];
 
   const toggle = async (which: 1 | 2) => {
     if (which === 1) { const n = !t1; setT1(n); await updateSettings({ auto_reply_enabled: n }); }

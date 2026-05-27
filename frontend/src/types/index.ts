@@ -92,6 +92,10 @@ export interface Settings {
   comment_trigger_enabled: boolean;
   welcome_message_enabled: boolean;
   welcome_message_text: string;
+  // Read-only mirror of TIDIO_ENABLED env var. Drives whether the Tidio
+  // sidebar group + /tidio/conversations route render, and whether the
+  // notification hook polls Tidio. Toggling requires server restart.
+  tidio_enabled: boolean;
   default_conversation_mode: 'ai' | 'human';
   public_base_url: string;
 }
