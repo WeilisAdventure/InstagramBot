@@ -26,6 +26,10 @@ class IncomingMessage:
     outbound client / settings scope / AI prompt. `sender_id` is unique only
     within a channel — pair (channel, sender_id) is what identifies a user
     globally.
+
+    `thread_id` is an opaque, channel-specific thread/ticket identifier. IG
+    doesn't have a thread concept (DMs are 1:1 with the user), so it's None
+    there. Tidio sets it to the ticket id so we know where to reply.
     """
     sender_id: str
     sender_username: str
@@ -34,6 +38,7 @@ class IncomingMessage:
     timestamp: float
     channel: str = "instagram"  # default kept so old call sites stay valid during the transition
     attachments: list[Attachment] = field(default_factory=list)
+    thread_id: str | None = None
 
 
 MessageHandler = Callable[[IncomingMessage], Awaitable[None]]
@@ -66,6 +71,11 @@ class ChannelClient(ABC):
         ...
 
     @abstractmethod
-    async def send_dm(self, user_id: str, text: str) -> bool:
-        """Send a direct message. Returns True on success."""
+    async def send_dm(self, user_id: str, text: str, *, thread_id: str | None = None) -> bool:
+        """Send a direct message. Returns True on success.
+
+        `thread_id` is an optional channel-specific thread/ticket identifier
+        — channels that route by a thread (Tidio tickets, future helpdesk
+        platforms) use it; IG ignores it because DMs are addressed by user.
+        """
         ...

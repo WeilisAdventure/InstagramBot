@@ -231,7 +231,10 @@ async def send_message(conv_id: int, data: SendMessageRequest, request: Request,
         ig_error = f"No client registered for channel '{conv.channel}'"
     else:
         try:
-            ig_sent = await ch_client.send_dm(conv.external_user_id, send_text)
+            ig_sent = await ch_client.send_dm(
+                conv.external_user_id, send_text,
+                thread_id=conv.external_thread_id,
+            )
         except Exception as e:
             ig_error = str(e)
 
