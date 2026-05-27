@@ -69,7 +69,6 @@ class AssistRequest(BaseModel):
 class AssistResponse(BaseModel):
     original: str
     improved: str
-    language: str
 
 
 class UpdateModeRequest(BaseModel):
