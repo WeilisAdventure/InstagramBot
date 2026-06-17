@@ -681,24 +681,7 @@ export default function Conversations() {
                   {c.last_message_role === 'user'
                     && c.last_message_id != null
                     && (c.last_read_message_id ?? 0) < c.last_message_id && (
-                    <span
-                      role="button"
-                      title="标记为已读"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        markReadMutation.mutate(c.id);
-                      }}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 6,
-                        margin: -6,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <span className="unread-dot" />
-                    </span>
+                    <span className="unread-dot" />
                   )}
                   {c.last_message_role === 'assistant' && (
                     c.last_message_is_ai ? (
@@ -743,6 +726,26 @@ export default function Conversations() {
               <div className="flex-1">
                 <div className="panel-title">{username}</div>
               </div>
+              {(() => {
+                const cur = convs.find((c) => c.id === detail.id);
+                const hasUnread = !!(
+                  cur
+                  && cur.last_message_role === 'user'
+                  && cur.last_message_id != null
+                  && (cur.last_read_message_id ?? 0) < cur.last_message_id
+                );
+                if (!hasUnread) return null;
+                return (
+                  <button
+                    style={{ fontSize: 12, padding: '4px 10px' }}
+                    onClick={() => markReadMutation.mutate(detail.id)}
+                    disabled={markReadMutation.isPending}
+                    title="清除未读蓝点（不发送回复）"
+                  >
+                    标记为已读
+                  </button>
+                );
+              })()}
               {detail.trigger_source === 'comment_rule' && (
                 <span className="tag-pill tag-ai" style={{ fontSize: 10 }}>由评论触发</span>
               )}
