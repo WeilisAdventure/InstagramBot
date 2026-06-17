@@ -66,21 +66,20 @@ class ClaudeProvider(AIProvider):
             return {"original": text, "translated": text, "source_lang": source_lang}
 
     async def translate_and_improve(self, text: str) -> dict:
-        try:
-            response = await self.client.messages.create(
-                model=self.model,
-                max_tokens=2048,
-                messages=[{"role": "user", "content": ASSIST_PROMPT + text}],
-            )
-            _l = logging.getLogger(__name__)
-            _l.info(
-                "translate_and_improve stop_reason=%s usage=%s",
-                getattr(response, "stop_reason", None),
-                getattr(response, "usage", None),
-            )
-            if getattr(response, "stop_reason", None) == "max_tokens":
-                _l.warning("translate_and_improve hit max_tokens — output truncated")
-            return _clean_assist_output(response.content[0].text, text)
-        except Exception as e:
-            logging.getLogger(__name__).warning(f"translate_and_improve failed: {e}")
-            return {"original": text, "improved": text}
+        # Let exceptions propagate to the caller (the /assist endpoint) so a real
+        # failure — e.g. a retired model 404 — surfaces to the UI instead of
+        # being silently swallowed and echoed back as the unchanged input.
+        response = await self.client.messages.create(
+            model=self.model,
+            max_tokens=2048,
+            messages=[{"role": "user", "content": ASSIST_PROMPT + text}],
+        )
+        _l = logging.getLogger(__name__)
+        _l.info(
+            "translate_and_improve stop_reason=%s usage=%s",
+            getattr(response, "stop_reason", None),
+            getattr(response, "usage", None),
+        )
+        if getattr(response, "stop_reason", None) == "max_tokens":
+            _l.warning("translate_and_improve hit max_tokens — output truncated")
+        return _clean_assist_output(response.content[0].text, text)

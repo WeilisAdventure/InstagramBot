@@ -76,10 +76,9 @@ class GoogleProvider(AIProvider):
             return {"original": text, "translated": text, "source_lang": source_lang}
 
     async def translate_and_improve(self, text: str) -> dict:
-        try:
-            model = genai.GenerativeModel(model_name=self.model)
-            response = await model.generate_content_async(ASSIST_PROMPT + text)
-            return _clean_assist_output(response.text or "", text)
-        except Exception as e:
-            logging.getLogger(__name__).warning(f"translate_and_improve failed: {e}")
-            return {"original": text, "improved": text}
+        # Let exceptions propagate to the caller (the /assist endpoint) so a real
+        # failure — e.g. a retired model 404 — surfaces to the UI instead of
+        # being silently swallowed and echoed back as the unchanged input.
+        model = genai.GenerativeModel(model_name=self.model)
+        response = await model.generate_content_async(ASSIST_PROMPT + text)
+        return _clean_assist_output(response.text or "", text)

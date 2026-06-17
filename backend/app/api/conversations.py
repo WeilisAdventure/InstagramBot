@@ -1,10 +1,13 @@
 import asyncio
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
+
+logger = logging.getLogger(__name__)
 from app.models.conversation import Conversation, Message
 from app.schemas.conversation import (
     ConversationResponse, ConversationDetail, MessageResponse,
@@ -36,6 +39,43 @@ def _get_channel_client(request: Request, channel: str):
     if channel == "instagram":
         return getattr(request.app.state, "ig_client", None)
     return None
+
+
+async def _build_provider_from_db(db: AsyncSession, request: Request):
+    """Build an AI provider from the latest DB settings, falling back to .env.
+
+    Shared by /generate-reply and /assist so a model/key change made in the
+    Settings UI takes effect on every AI feature immediately, without a
+    restart — and no single endpoint is left pinned to a stale .env provider.
+    """
+    from app.models.settings import SystemSettings
+    from app.ai.factory import create_provider_for_model
+    from app.config import settings as app_settings
+
+    async def _db_val(key: str) -> str:
+        r = await db.execute(select(SystemSettings).where(SystemSettings.key == key))
+        s = r.scalar_one_or_none()
+        return s.value if s else ""
+
+    fallback = getattr(request.app.state, "ai_provider", None)
+    current_model = (await _db_val("ai_model")) or getattr(fallback, "model", app_settings.ai_model)
+    model_provider = await _db_val("ai_model_provider")
+    a_key = (await _db_val("anthropic_api_key")) or app_settings.anthropic_api_key
+    o_key = (await _db_val("openai_api_key")) or app_settings.openai_api_key
+    g_key = (await _db_val("google_api_key")) or app_settings.google_api_key
+    custom_key = await _db_val("custom_api_key")
+    custom_url = await _db_val("custom_base_url")
+
+    return create_provider_for_model(
+        model_id=current_model,
+        anthropic_key=a_key,
+        openai_key=o_key,
+        openai_base_url=app_settings.openai_base_url,
+        google_key=g_key,
+        provider_override=model_provider,
+        custom_api_key=custom_key,
+        custom_base_url=custom_url,
+    )
 
 
 @router.get("", response_model=list[ConversationResponse])
@@ -259,9 +299,20 @@ async def send_message(conv_id: int, data: SendMessageRequest, request: Request,
 
 
 @router.post("/{conv_id}/assist", response_model=AssistResponse)
-async def assist_input(conv_id: int, data: AssistRequest, request: Request):
-    translator = request.app.state.translator
-    result = await translator.assist_input(data.text)
+async def assist_input(conv_id: int, data: AssistRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    # Rebuild the provider from DB settings (same as /generate-reply) so the
+    # assist button uses whatever model/key is configured in the Settings UI,
+    # instead of the stale .env provider built once at startup.
+    from app.services.translator import TranslatorService
+
+    ai = await _build_provider_from_db(db, request)
+    try:
+        result = await TranslatorService(ai).assist_input(data.text)
+    except Exception as e:
+        # Surface the real failure (e.g. a retired model 404) instead of
+        # silently echoing the input back, which looks like "nothing happened".
+        logger.error(f"assist_input failed: {e}")
+        raise HTTPException(status_code=502, detail=f"AI 优化失败：{str(e)[:300]}")
     return AssistResponse(**result)
 
 
@@ -307,36 +358,9 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
     messages = msg_result.scalars().all()
     history = [{"role": m.role, "content": m.content} for m in messages if m.role in ("user", "assistant") and m.content and m.content.strip()]
 
-    ai = request.app.state.ai_provider
     # Always rebuild provider from latest DB settings so model/key changes
     # take effect immediately without a server restart.
-    from app.models.settings import SystemSettings
-    from app.ai.factory import create_provider_for_model
-    from app.config import settings as app_settings
-
-    async def _db_val(key: str) -> str:
-        r = await db.execute(select(SystemSettings).where(SystemSettings.key == key))
-        s = r.scalar_one_or_none()
-        return s.value if s else ""
-
-    current_model  = (await _db_val("ai_model")) or getattr(ai, "model", app_settings.ai_model)
-    model_provider = await _db_val("ai_model_provider")
-    a_key  = (await _db_val("anthropic_api_key")) or app_settings.anthropic_api_key
-    o_key  = (await _db_val("openai_api_key"))    or app_settings.openai_api_key
-    g_key  = (await _db_val("google_api_key"))    or app_settings.google_api_key
-    custom_key = await _db_val("custom_api_key")
-    custom_url = await _db_val("custom_base_url")
-
-    ai = create_provider_for_model(
-        model_id=current_model,
-        anthropic_key=a_key,
-        openai_key=o_key,
-        openai_base_url=app_settings.openai_base_url,
-        google_key=g_key,
-        provider_override=model_provider,
-        custom_api_key=custom_key,
-        custom_base_url=custom_url,
-    )
+    ai = await _build_provider_from_db(db, request)
     request.app.state.ai_provider = ai
     # Get last user message + its image attachments (if any), so multimodal
     # models can actually see what the customer sent.

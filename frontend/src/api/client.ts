@@ -22,7 +22,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error('Unauthorized');
   }
   if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+    // Surface the backend's `detail` message (FastAPI HTTPException) so callers
+    // can show the real reason — e.g. a retired-model 404 — instead of a
+    // generic status line.
+    let detail = '';
+    try {
+      const body = await res.json();
+      detail = body?.detail || '';
+    } catch {
+      /* non-JSON error body — fall back to the status line */
+    }
+    throw new Error(detail || `API error: ${res.status} ${res.statusText}`);
   }
   if (res.status === 204) return undefined as T;
   return res.json();

@@ -422,6 +422,10 @@ export default function Conversations() {
       // conversation we generated it for; otherwise silently discard.
       if (selectedId === vars.convId) setAssist(result);
     },
+    onError: (e: any) => {
+      const msg = e?.message || 'AI 优化失败';
+      showToast(`AI 优化失败：${msg}`, 'error');
+    },
   });
 
   const generateReplyMutation = useMutation({
