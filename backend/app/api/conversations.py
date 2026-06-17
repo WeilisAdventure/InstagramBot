@@ -41,6 +41,15 @@ def _get_channel_client(request: Request, channel: str):
     return None
 
 
+async def _db_setting(db: AsyncSession, key: str) -> str:
+    """Read a single SystemSettings value, or '' if unset."""
+    from app.models.settings import SystemSettings
+
+    r = await db.execute(select(SystemSettings).where(SystemSettings.key == key))
+    s = r.scalar_one_or_none()
+    return s.value if s else ""
+
+
 async def _build_provider_from_db(db: AsyncSession, request: Request):
     """Build an AI provider from the latest DB settings, falling back to .env.
 
@@ -48,14 +57,11 @@ async def _build_provider_from_db(db: AsyncSession, request: Request):
     Settings UI takes effect on every AI feature immediately, without a
     restart — and no single endpoint is left pinned to a stale .env provider.
     """
-    from app.models.settings import SystemSettings
     from app.ai.factory import create_provider_for_model
     from app.config import settings as app_settings
 
     async def _db_val(key: str) -> str:
-        r = await db.execute(select(SystemSettings).where(SystemSettings.key == key))
-        s = r.scalar_one_or_none()
-        return s.value if s else ""
+        return await _db_setting(db, key)
 
     fallback = getattr(request.app.state, "ai_provider", None)
     current_model = (await _db_val("ai_model")) or getattr(fallback, "model", app_settings.ai_model)
@@ -371,7 +377,7 @@ async def generate_reply(conv_id: int, data: GenerateReplyRequest, request: Requ
             last_user_msg = m.content
             last_user_attachments = m.attachments or []
             break
-    pub = (await _db_val("public_base_url")).rstrip("/")
+    pub = (await _db_setting(db, "public_base_url")).rstrip("/")
     image_urls: list[str] = []
     if pub and last_user_attachments:
         for a in last_user_attachments:
